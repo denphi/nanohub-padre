@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools-scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pypadre"
+version = "0.1.0"
+description = "Python library for creating and running PADRE semiconductor device simulations"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "PyPADRE Contributors"}
+]
+requires-python = ">=3.7"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+keywords = ["semiconductor", "device simulation", "PADRE", "TCAD"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov",
+]
+docs = [
+    "sphinx>=4.0",
+    "sphinx-rtd-theme>=1.0",
+]
+
+[project.urls]
+Documentation = "https://pypadre.readthedocs.io/"
+Repository = "https://github.com/yourusername/padre"
+Issues = "https://github.com/yourusername/padre/issues"
+
+[tool.setuptools.packages.find]
+include = ["pypadre*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

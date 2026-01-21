@@ -1,0 +1,81 @@
+title      MOSFET - NMOS
+
+MESH RECT NX=51 NY=51
+X.M N=1 LOC=0
+X.M N=15 LOC=0.05  RATIO=0.8
+X.M N=26 LOC=0.0625 RATIO=1.25
+X.M N=36 LOC=0.075 RATIO=0.8
+X.M N=51 LOC=0.125 RATIO=1.25
+
+Y.M N=1 LOC=0
+Y.M N=25 LOC=0.068 RATIO=0.8
+Y.M N=36 LOC=0.0805 RATIO=1.25
+Y.M N=46 LOC=0.093 RATIO=0.8
+Y.M N=51 LOC=0.0942 RATIO=1.25
+
+# Substrate
+REGION NUM=1 ix.l=1 ix.h=51 iy.l=1 iy.h=25 silicon
+# Source
+REGION NUM=2 ix.l=1 ix.h=15 iy.l=25 iy.h=46 silicon
+# Drain
+REGION NUM=3 ix.l=36 ix.h=51 iy.l=25 iy.h=46 silicon
+# Channel
+REGION NUM=4 ix.l=15 ix.h=36 iy.l=25 iy.h=46 silicon
+# Gate
+REGION NUM=5 ix.l=15 ix.h=36 iy.l=46 iy.h=51 oxide
+# Fillers
+REGION NUM=6 ix.l=1 ix.h=15 iy.l=46 iy.h=51 oxide
+REGION NUM=7 ix.l=36 ix.h=51 iy.l=46 iy.h=51 oxide
+
+ELECT NUM=1 ix.l=1 ix.h=15 iy.l=46 iy.h=46
+ELECT NUM=2 ix.l=36 ix.h=51 iy.l=46 iy.h=46
+ELECT NUM=3 ix.l=15 ix.h=36 iy.l=51 iy.h=51
+ELECT NUM=4 ix.l=1 ix.h=51 iy.l=1 iy.h=1
+
+dop region=2,3 unif conc=1e+20 n.type
+dop region=4 unif conc=1e+19 p.type
+dop region=1 unif conc=5e+16 p.type
+plot.3d doping outfile=doping
+contact num=3 n.polysilicon
+
+MODELS TEMP=300 bgn
+SYSTEM NEWTON CARR=1 ELECTRONS
+
+solve init outfile=initsol
+PLOT.3D POTEN ELECT OUTFILE=equ
+# solve for transfer characteristic
+solve v2=0 vstep=0.05 nsteps=1 elect=2
+solve v2=0.05
+log outf=idvg
+solve v3=0 vstep=0.1 nsteps=15 elect=3
+log off
+load infile=initsol
+solve v3=0.0 outfile=vgn0
+solve v3=0.0 vstep=0.0833333333333 nsteps=6 elect=3
+solve v3=0.5 outfile=vgn1
+solve v3=0.5 vstep=0.0833333333333 nsteps=6 elect=3
+solve v3=1.0 outfile=vgn2
+solve v3=1.0 vstep=0.0833333333333 nsteps=6 elect=3
+solve v3=1.5 outfile=vgn3
+solve v3=1.5 vstep=0.0833333333333 nsteps=6 elect=3
+solve v3=2.0 outfile=vgn4
+
+load infile=vgn0
+log outfile=idvd
+solve v2=0 vstep=0.1 nsteps=20 elect=2
+
+load infile=vgn1
+solve v2=0 vstep=0.1 nsteps=20 elect=2
+
+load infile=vgn2
+solve v2=0 vstep=0.1 nsteps=20 elect=2
+
+load infile=vgn3
+solve v2=0 vstep=0.1 nsteps=20 elect=2
+
+load infile=vgn4
+solve v2=0 vstep=0.1 nsteps=20 elect=2
+log off
+plot.3d pot elect outf=wmc
+
+END

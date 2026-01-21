@@ -1,0 +1,44 @@
+MESH RECT NX=61 NY=51
+
+X.M N=1  LOC=0     RATIO=1.1
+X.M N=11 LOC=0.1   RATIO=0.8
+X.M N=21 LOC=0.2   RATIO=0.8
+X.M N=41 LOC=0.4   RATIO=0.8
+X.M N=51 LOC=0.5   RATIO=0.8
+X.M N=61 LOC=0.6   RATIO=1.1
+Y.MESH N=1   LOC=0.0  RATIO=1.1
+Y.MESH N=20  LOC=0.8  RATIO=0.9
+Y.MESH N=51  LOC=1 RATIO=0.8 
+
+REGION NUM=1 ix.l=1 ix.h=61 iy.l=1 iy.h=20 silicon
+REGION NUM=2 ix.l=1 ix.h=11 iy.l=20 iy.h=51 silicon
+REGION NUM=3 ix.l=11 ix.h=51 iy.l=20 iy.h=51 silicon
+REGION NUM=4 ix.l=51 ix.h=61 iy.l=20 iy.h=51 silicon
+
+ELECT NUM=2 ix.l=51 ix.h=61 iy.l=51 iy.h=51
+ELECT NUM=1 ix.l=1 ix.h=11 iy.l=51 iy.h=51
+ELECT NUM=3 ix.l=21 ix.h=41 iy.l=51 iy.h=51
+
+dop region=1 p.type uniform conc=1e17
+dop region=2 n.type uniform conc=1e20 
+dop region=3 n.type uniform conc=1e17
+dop region=4 n.type uniform conc=1e20
+plot.3d doping outfile=doping
+
+contact all neutral
+contact num=3 workfunc=4.87
+
+MODELS TEMP=300 bgn conmob fldmob
+SYSTEM NEWTON CARR=1 ELECTRONS
+
+solve init outfile=initsol
+PLOT.3D POTEN ELECTRONS OUTFILE=equ
+
+solve v3=0 vstep=-0.1 nstep=4 elec=3
+PLOT.3D POTEN ELECTRONS OUTFILE=non_equ1
+
+log outfile=idvd
+solve v2=0 vstep=0.1 nsteps=20 elect=2
+PLOT.3D POTEN ELECTRONS OUTFILE=non_equ2
+
+END

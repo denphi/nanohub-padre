@@ -1,0 +1,61 @@
+title      pn diode (setup)
+options    PO
+
+mesh       rect nx=200 ny=3 width=1 outf=mesh
+x.m        n=1  l=0 r=1
+x.m        n=100 l=0.5 r=0.8
+x.m        n=200 l=1.0 r=1.05
+y.m        n=1  l=0 r=1
+y.m        n=3  l=1 r=1
+
+$ Regions specifications
+region     num=1 ix.l=1 ix.h=100 iy.l=1 iy.h=3 silicon
+region     num=1 ix.l=100 ix.h=200 iy.l=1 iy.h=3 silicon
+elec       num=1 ix.l=1 ix.h=1 iy.l=1 iy.h=3
+elec       num=2 ix.l=200 ix.h=200 iy.l=1 iy.h=3
+
+$ Doping specification
+dop        reg=1 p.type conc=1e+17 x.l=0 x.r=0.5 y.top=0 y.bot=1 uniform
+dop        reg=1 n.type conc=1e+17 x.l=0.5 x.r=1.0 y.top=0 y.bot=1 uniform
+plot.1d    log dop abs a.x=0 b.x=1.0 b.y=0.5 a.y=0.5 points ascii
++          outf=dop
+
+$ Materials specifications
+material name=silicon taun0=1e-06 taup0=1e-06 trap.typ=0 etrap=0
+
+$ Specify models
+models srh conmob fldmob impact temperature=300
+system electrons holes newton
+
+$ Solve for initial conditions
+solve init
+plot.1d pot a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=pot
+plot.1d band.val a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=vband
+plot.1d band.con a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=cband
+plot.1d qfn a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=qfn
+plot.1d qfp a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=qfp
+plot.1d ele a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=ele
+plot.1d hole a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=hole
+plot.1d net.charge a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=ro
+plot.1d e.field a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=efield
+plot.1d recomb a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=recomb
+
+$ Solve for applied bias
+log outf=iv
+solve prev
+solve proj vstep=0.03 nsteps=20 elect=1
+plot.1d pot a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=potiv
+plot.1d band.val a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=vbiv
+plot.1d band.con a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=cbiv
+plot.1d qfn a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=qfniv
+plot.1d qfp a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=qfpiv
+plot.1d ele a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=eleiv
+plot.1d hole a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=holeiv
+plot.1d net.charge a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=roiv
+plot.1d e.field a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=efieldiv
+plot.1d recomb a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=reiv
+plot.1d j.electr a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=jelectr
+plot.1d j.hole a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=jhole
+plot.1d j.total a.x=0 b.x=1.0 a.y=0.5 b.y=0.5 ascii outf=jtot
+
+end
