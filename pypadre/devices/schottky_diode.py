@@ -1,0 +1,122 @@
+"""
+Schottky Diode factory function.
+"""
+
+from typing import Optional
+from ..simulation import Simulation
+from ..mesh import Mesh
+from ..region import Region
+from ..electrode import Electrode
+from ..doping import Doping
+from ..contact import Contact
+from ..models import Models
+from ..solver import System
+
+
+def create_schottky_diode(
+    # Geometry parameters
+    length: float = 2.0,
+    width: float = 1.0,
+    # Mesh parameters
+    nx: int = 100,
+    ny: int = 20,
+    # Doping parameters
+    doping: float = 1e16,
+    doping_type: str = "n",
+    # Contact parameters
+    workfunction: float = 4.8,
+    barrier_lowering: bool = True,
+    surf_rec: bool = True,
+    # Physical models
+    temperature: float = 300,
+    srh: bool = True,
+    conmob: bool = True,
+    fldmob: bool = True,
+    # Simulation options
+    title: Optional[str] = None,
+) -> Simulation:
+    """
+    Create a Schottky diode simulation.
+
+    Creates a metal-semiconductor junction with configurable barrier height.
+
+    Parameters
+    ----------
+    length : float
+        Device length in microns (default: 2.0)
+    width : float
+        Device width in microns (default: 1.0)
+    nx : int
+        Mesh points in x direction (default: 100)
+    ny : int
+        Mesh points in y direction (default: 20)
+    doping : float
+        Semiconductor doping concentration in cm^-3 (default: 1e16)
+    doping_type : str
+        Semiconductor doping type: "n" or "p" (default: "n")
+    workfunction : float
+        Metal workfunction in V (default: 4.8)
+    barrier_lowering : bool
+        Enable image-force barrier lowering (default: True)
+    surf_rec : bool
+        Enable surface recombination at contact (default: True)
+    temperature : float
+        Simulation temperature in Kelvin (default: 300)
+    srh : bool
+        Enable Shockley-Read-Hall recombination (default: True)
+    conmob : bool
+        Enable concentration-dependent mobility (default: True)
+    fldmob : bool
+        Enable field-dependent mobility (default: True)
+    title : str, optional
+        Simulation title
+
+    Returns
+    -------
+    Simulation
+        Configured Schottky diode simulation
+
+    Example
+    -------
+    >>> sim = create_schottky_diode(doping=1e17, workfunction=4.7)
+    >>> sim.add_solve(Solve(initial=True))
+    >>> sim.add_log(Log(ivfile="iv"))
+    >>> sim.add_solve(Solve(project=True, vstep=0.05, nsteps=20, electrode=1))
+    >>> print(sim.generate_deck())
+    """
+    is_n_type = doping_type.lower() == "n"
+    sim = Simulation(title=title or "Schottky Diode")
+
+    # Mesh with refinement near Schottky contact
+    sim.mesh = Mesh(nx=nx, ny=ny, outfile="mesh")
+    sim.mesh.add_x_mesh(1, 0)
+    sim.mesh.add_x_mesh(nx, length)
+    sim.mesh.add_y_mesh(1, 0)
+    sim.mesh.add_y_mesh(int(ny * 0.3), width * 0.1, ratio=0.8)  # Fine mesh near surface
+    sim.mesh.add_y_mesh(ny, width, ratio=1.2)
+
+    # Region
+    sim.add_region(Region(1, ix_low=1, ix_high=nx, iy_low=1, iy_high=ny, silicon=True))
+
+    # Electrodes
+    sim.add_electrode(Electrode(1, ix_low=1, ix_high=nx, iy_low=1, iy_high=1))  # Schottky contact
+    sim.add_electrode(Electrode(2, ix_low=1, ix_high=nx, iy_low=ny, iy_high=ny))  # Ohmic back
+
+    # Doping
+    sim.add_doping(Doping(region=1, n_type=is_n_type, p_type=not is_n_type,
+                          uniform=True, concentration=doping))
+
+    # Contacts
+    sim.add_contact(Contact(number=1, workfunction=workfunction,
+                            surf_rec=surf_rec, barrierl=barrier_lowering))
+    sim.add_contact(Contact(number=2, neutral=True))
+
+    # Models
+    sim.models = Models(temperature=temperature, srh=srh, conmob=conmob, fldmob=fldmob)
+    sim.system = System(electrons=True, holes=True, newton=True)
+
+    return sim
+
+
+# Alias
+schottky_diode = create_schottky_diode

@@ -3,6 +3,52 @@ Examples
 
 This section contains complete example simulations for common semiconductor devices.
 
+Using Device Factory Functions
+------------------------------
+
+The easiest way to create device simulations is using the factory functions.
+See the :doc:`devices` documentation for details on all available factories.
+
+.. code-block:: python
+
+   from pypadre import create_pn_diode, create_mosfet, create_bjt, Solve, Log
+
+   # Create devices with one line each
+   diode = create_pn_diode(p_doping=1e17, n_doping=1e17)
+   nmos = create_mosfet(channel_length=0.05, device_type="nmos")
+   npn = create_bjt(base_width=0.3, device_type="npn")
+
+   # Add solve commands and generate deck
+   diode.add_solve(Solve(initial=True))
+   print(diode.generate_deck())
+
+Device Factory Examples
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Complete examples using device factory functions are in ``examples/devices/``:
+
+* ``pn_diode_example.py`` - PN diode I-V characteristics
+* ``mos_capacitor_example.py`` - MOS capacitor C-V analysis
+* ``mosfet_example.py`` - NMOS transfer and output characteristics
+* ``mesfet_example.py`` - MESFET output characteristics
+* ``bjt_example.py`` - NPN common-emitter characteristics
+* ``schottky_diode_example.py`` - Schottky diode forward/reverse I-V
+* ``solar_cell_example.py`` - Solar cell dark I-V
+
+Run any example:
+
+.. code-block:: bash
+
+   cd padre
+   PYTHONPATH=. python3 examples/devices/mosfet_example.py > mosfet.inp
+   padre < mosfet.inp > mosfet.out
+
+Manual Device Construction Examples
+-----------------------------------
+
+The examples below show how to build devices manually, giving you full control
+over the structure. These are useful when you need custom device geometries.
+
 PN Diode
 --------
 

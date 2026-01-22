@@ -3,6 +3,42 @@ API Reference
 
 This section provides detailed API documentation for all PyPADRE classes.
 
+Device Factory Functions
+------------------------
+
+.. automodule:: pypadre.devices
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pypadre.devices.pn_diode
+   :members:
+   :undoc-members:
+
+.. automodule:: pypadre.devices.mos_capacitor
+   :members:
+   :undoc-members:
+
+.. automodule:: pypadre.devices.mosfet
+   :members:
+   :undoc-members:
+
+.. automodule:: pypadre.devices.mesfet
+   :members:
+   :undoc-members:
+
+.. automodule:: pypadre.devices.bjt
+   :members:
+   :undoc-members:
+
+.. automodule:: pypadre.devices.schottky_diode
+   :members:
+   :undoc-members:
+
+.. automodule:: pypadre.devices.solar_cell
+   :members:
+   :undoc-members:
+
 Simulation
 ----------
 
@@ -133,6 +169,24 @@ Plot3D
 
 Quick Reference
 ---------------
+
+Device Factory Functions
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+==========================  ========================================
+Function                    Description
+==========================  ========================================
+``create_pn_diode``         PN junction diode
+``create_mos_capacitor``    MOS capacitor for C-V analysis
+``create_mosfet``           NMOS/PMOS transistor
+``create_mesfet``           Metal-semiconductor FET
+``create_bjt``              NPN/PNP bipolar transistor
+``create_schottky_diode``   Schottky barrier diode
+``create_solar_cell``       PN junction solar cell
+==========================  ========================================
+
+Aliases: ``pn_diode``, ``mos_capacitor``, ``mosfet``, ``mesfet``, ``bjt``,
+``schottky_diode``, ``solar_cell``
 
 Core Classes
 ~~~~~~~~~~~~

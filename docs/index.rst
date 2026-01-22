@@ -14,12 +14,36 @@ Features
 --------
 
 * **Pythonic Interface**: Define meshes, regions, doping profiles, and solver settings using Python objects
+* **Device Factory Functions**: Pre-built functions to create common devices (PN diode, MOSFET, BJT, solar cell, etc.)
 * **Complete PADRE Support**: Covers mesh generation, material properties, physical models, and solve commands
 * **Validation**: Built-in parameter validation and helpful error messages
-* **Examples**: Ready-to-run examples for common device structures (PN diode, MOS capacitor, MOSFET, MESFET)
+* **Examples**: Ready-to-run examples for common device structures
 
 Quick Start
 -----------
+
+**Using Device Factory Functions (Recommended)**
+
+.. code-block:: python
+
+   from pypadre import create_mosfet, Solve, Log
+
+   # Create an NMOS transistor with one line
+   sim = create_mosfet(
+       channel_length=0.05,
+       device_type="nmos",
+       temperature=300
+   )
+
+   # Add solve commands
+   sim.add_solve(Solve(initial=True))
+   sim.add_log(Log(ivfile="idvg"))
+   sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
+
+   # Generate the input deck
+   print(sim.generate_deck())
+
+**Building from Scratch**
 
 .. code-block:: python
 
@@ -77,6 +101,7 @@ Or install from source:
 
    getting_started
    user_guide
+   devices
    examples
    api
 

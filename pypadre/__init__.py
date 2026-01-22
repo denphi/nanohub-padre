@@ -22,6 +22,25 @@ from .options import Options, Load
 from .plot3d import Plot3D
 from .base import Comment, Title
 
+# Device factory functions
+from .devices import (
+    create_pn_diode,
+    create_mos_capacitor,
+    create_mosfet,
+    create_mesfet,
+    create_bjt,
+    create_schottky_diode,
+    create_solar_cell,
+    # Aliases
+    pn_diode,
+    mos_capacitor,
+    mosfet,
+    mesfet,
+    bjt,
+    schottky_diode,
+    solar_cell,
+)
+
 __version__ = "0.1.0"
 __all__ = [
     "Simulation",
@@ -40,4 +59,20 @@ __all__ = [
     "Options", "Load",
     "Plot3D",
     "Comment", "Title",
+    # Device factory functions
+    "create_pn_diode",
+    "create_mos_capacitor",
+    "create_mosfet",
+    "create_mesfet",
+    "create_bjt",
+    "create_schottky_diode",
+    "create_solar_cell",
+    # Aliases
+    "pn_diode",
+    "mos_capacitor",
+    "mosfet",
+    "mesfet",
+    "bjt",
+    "schottky_diode",
+    "solar_cell",
 ]
