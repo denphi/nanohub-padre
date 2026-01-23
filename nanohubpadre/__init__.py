@@ -58,6 +58,15 @@ from .devices import (
 # Environment loading (use command)
 from .use import use, load_padre, list_available_modules
 
+# Visualization functions
+from .visualization import (
+    plot_iv,
+    plot_transfer_characteristic,
+    plot_output_characteristic,
+    plot_diode_iv,
+    get_available_backends,
+)
+
 __version__ = "0.0.1"
 __all__ = [
     "Simulation",
@@ -108,4 +117,10 @@ __all__ = [
     "use",
     "load_padre",
     "list_available_modules",
+    # Visualization
+    "plot_iv",
+    "plot_transfer_characteristic",
+    "plot_output_characteristic",
+    "plot_diode_iv",
+    "get_available_backends",
 ]

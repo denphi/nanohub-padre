@@ -669,6 +669,218 @@ class Simulation:
         iv_data = self.get_iv_data(filename=filename)
         return iv_data.get_output_characteristic(drain_electrode)
 
+    # -----------------------------------------------------------------------
+    # Plotting methods
+    # -----------------------------------------------------------------------
+
+    def plot_iv(
+        self,
+        electrode: int,
+        filename: Optional[str] = None,
+        title: Optional[str] = None,
+        log_scale: bool = False,
+        backend: Optional[str] = None,
+        show: bool = True,
+        **kwargs
+    ):
+        """
+        Plot I-V data for a specific electrode.
+
+        Parameters
+        ----------
+        electrode : int
+            Electrode number
+        filename : str, optional
+            Log file name. If None, infers from simulation Log commands.
+        title : str, optional
+            Plot title
+        log_scale : bool
+            Use log scale for current
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        **kwargs
+            Additional plotting arguments
+
+        Returns
+        -------
+        Any
+            Plot object (matplotlib Axes or plotly Figure)
+
+        Example
+        -------
+        >>> sim.add_log(Log(ivfile="idvg"))
+        >>> sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
+        >>> result = sim.run()
+        >>> sim.plot_iv(electrode=2)
+        """
+        iv_data = self.get_iv_data(filename=filename)
+        return iv_data.plot(
+            electrode,
+            title=title,
+            log_scale=log_scale,
+            backend=backend,
+            show=show,
+            **kwargs
+        )
+
+    def plot_transfer(
+        self,
+        gate_electrode: int,
+        drain_electrode: int,
+        filename: Optional[str] = None,
+        title: Optional[str] = None,
+        log_scale: bool = True,
+        backend: Optional[str] = None,
+        show: bool = True,
+        **kwargs
+    ):
+        """
+        Plot transfer characteristic (Id vs Vg).
+
+        Parameters
+        ----------
+        gate_electrode : int
+            Gate electrode number
+        drain_electrode : int
+            Drain electrode number
+        filename : str, optional
+            Log file name. If None, infers from simulation Log commands.
+        title : str, optional
+            Plot title
+        log_scale : bool
+            Use log scale for drain current (default True)
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        **kwargs
+            Additional plotting arguments
+
+        Returns
+        -------
+        Any
+            Plot object (matplotlib Axes or plotly Figure)
+
+        Example
+        -------
+        >>> sim.add_log(Log(ivfile="idvg"))
+        >>> sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
+        >>> result = sim.run()
+        >>> sim.plot_transfer(gate_electrode=3, drain_electrode=2)
+        """
+        iv_data = self.get_iv_data(filename=filename)
+        return iv_data.plot_transfer(
+            gate_electrode,
+            drain_electrode,
+            title=title,
+            log_scale=log_scale,
+            backend=backend,
+            show=show,
+            **kwargs
+        )
+
+    def plot_output(
+        self,
+        drain_electrode: int,
+        filename: Optional[str] = None,
+        title: Optional[str] = None,
+        log_scale: bool = False,
+        backend: Optional[str] = None,
+        show: bool = True,
+        **kwargs
+    ):
+        """
+        Plot output characteristic (Id vs Vd).
+
+        Parameters
+        ----------
+        drain_electrode : int
+            Drain electrode number
+        filename : str, optional
+            Log file name. If None, infers from simulation Log commands.
+        title : str, optional
+            Plot title
+        log_scale : bool
+            Use log scale for drain current (default False)
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        **kwargs
+            Additional plotting arguments
+
+        Returns
+        -------
+        Any
+            Plot object (matplotlib Axes or plotly Figure)
+
+        Example
+        -------
+        >>> sim.add_log(Log(ivfile="idvd"))
+        >>> sim.add_solve(Solve(v2=0, vstep=0.1, nsteps=20, electrode=2))
+        >>> result = sim.run()
+        >>> sim.plot_output(drain_electrode=2)
+        """
+        iv_data = self.get_iv_data(filename=filename)
+        return iv_data.plot_output(
+            drain_electrode,
+            title=title,
+            log_scale=log_scale,
+            backend=backend,
+            show=show,
+            **kwargs
+        )
+
+    def plot_all_electrodes(
+        self,
+        filename: Optional[str] = None,
+        title: str = "I-V Characteristics - All Electrodes",
+        log_scale: bool = False,
+        backend: Optional[str] = None,
+        show: bool = True,
+        **kwargs
+    ):
+        """
+        Plot I-V data for all electrodes.
+
+        Parameters
+        ----------
+        filename : str, optional
+            Log file name. If None, infers from simulation Log commands.
+        title : str
+            Plot title
+        log_scale : bool
+            Use log scale for current
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        **kwargs
+            Additional plotting arguments
+
+        Returns
+        -------
+        Any
+            Plot object (matplotlib Axes or plotly Figure)
+
+        Example
+        -------
+        >>> sim.add_log(Log(ivfile="idvg"))
+        >>> sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
+        >>> result = sim.run()
+        >>> sim.plot_all_electrodes(log_scale=True)
+        """
+        iv_data = self.get_iv_data(filename=filename)
+        return iv_data.plot_all_electrodes(
+            title=title,
+            log_scale=log_scale,
+            backend=backend,
+            show=show,
+            **kwargs
+        )
+
     def __repr__(self) -> str:
         parts = []
         if self.title:

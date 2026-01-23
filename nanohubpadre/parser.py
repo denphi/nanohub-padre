@@ -537,6 +537,225 @@ class IVData:
         id_vals = [abs(i) for i in self.get_currents(drain_electrode, 'total')]
         return vd, id_vals
 
+    # -----------------------------------------------------------------------
+    # Plotting methods
+    # -----------------------------------------------------------------------
+
+    def plot(
+        self,
+        electrode: int,
+        title: Optional[str] = None,
+        log_scale: bool = False,
+        backend: Optional[str] = None,
+        show: bool = True,
+        **kwargs
+    ):
+        """
+        Plot I-V data for a specific electrode.
+
+        Parameters
+        ----------
+        electrode : int
+            Electrode number
+        title : str, optional
+            Plot title
+        log_scale : bool
+            Use log scale for current
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        **kwargs
+            Additional plotting arguments
+
+        Returns
+        -------
+        Any
+            Plot object (matplotlib Axes or plotly Figure)
+
+        Example
+        -------
+        >>> iv_data = sim.get_iv_data()
+        >>> iv_data.plot(electrode=2, log_scale=True)
+        """
+        from .visualization import plot_iv
+        voltages, currents = self.get_iv_data(electrode)
+        title = title or f"I-V Characteristic - Electrode {electrode}"
+        return plot_iv(
+            voltages, currents,
+            title=title,
+            log_scale=log_scale,
+            backend=backend,
+            show=show,
+            **kwargs
+        )
+
+    def plot_transfer(
+        self,
+        gate_electrode: int,
+        drain_electrode: int,
+        title: Optional[str] = None,
+        log_scale: bool = True,
+        backend: Optional[str] = None,
+        show: bool = True,
+        **kwargs
+    ):
+        """
+        Plot transfer characteristic (Id vs Vg).
+
+        Parameters
+        ----------
+        gate_electrode : int
+            Gate electrode number
+        drain_electrode : int
+            Drain electrode number
+        title : str, optional
+            Plot title
+        log_scale : bool
+            Use log scale for drain current (default True)
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        **kwargs
+            Additional plotting arguments
+
+        Returns
+        -------
+        Any
+            Plot object (matplotlib Axes or plotly Figure)
+
+        Example
+        -------
+        >>> iv_data = sim.get_iv_data()
+        >>> iv_data.plot_transfer(gate_electrode=3, drain_electrode=2)
+        """
+        from .visualization import plot_transfer_characteristic
+        vg, id_vals = self.get_transfer_characteristic(gate_electrode, drain_electrode)
+        title = title or f"Transfer Characteristic (Gate={gate_electrode}, Drain={drain_electrode})"
+        return plot_transfer_characteristic(
+            vg, id_vals,
+            title=title,
+            log_scale=log_scale,
+            backend=backend,
+            show=show,
+            **kwargs
+        )
+
+    def plot_output(
+        self,
+        drain_electrode: int,
+        title: Optional[str] = None,
+        log_scale: bool = False,
+        backend: Optional[str] = None,
+        show: bool = True,
+        **kwargs
+    ):
+        """
+        Plot output characteristic (Id vs Vd).
+
+        Parameters
+        ----------
+        drain_electrode : int
+            Drain electrode number
+        title : str, optional
+            Plot title
+        log_scale : bool
+            Use log scale for drain current (default False)
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        **kwargs
+            Additional plotting arguments
+
+        Returns
+        -------
+        Any
+            Plot object (matplotlib Axes or plotly Figure)
+
+        Example
+        -------
+        >>> iv_data = sim.get_iv_data()
+        >>> iv_data.plot_output(drain_electrode=2)
+        """
+        from .visualization import plot_output_characteristic
+        vd, id_vals = self.get_output_characteristic(drain_electrode)
+        title = title or f"Output Characteristic (Drain={drain_electrode})"
+        return plot_output_characteristic(
+            vd, id_vals,
+            title=title,
+            log_scale=log_scale,
+            backend=backend,
+            show=show,
+            **kwargs
+        )
+
+    def plot_all_electrodes(
+        self,
+        title: str = "I-V Characteristics - All Electrodes",
+        log_scale: bool = False,
+        backend: Optional[str] = None,
+        show: bool = True,
+        **kwargs
+    ):
+        """
+        Plot I-V data for all electrodes.
+
+        Parameters
+        ----------
+        title : str
+            Plot title
+        log_scale : bool
+            Use log scale for current
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        **kwargs
+            Additional plotting arguments
+
+        Returns
+        -------
+        Any
+            Plot object (matplotlib Axes or plotly Figure)
+
+        Example
+        -------
+        >>> iv_data = sim.get_iv_data()
+        >>> iv_data.plot_all_electrodes(log_scale=True)
+        """
+        from .visualization import (
+            _get_default_backend,
+            _plot_multi_iv_matplotlib,
+            _plot_multi_iv_plotly
+        )
+
+        if backend is None:
+            backend = _get_default_backend()
+
+        data_series = []
+        for elec in range(1, self.num_electrodes + 1):
+            voltages, currents = self.get_iv_data(elec)
+            data_series.append((voltages, currents, f"Electrode {elec}"))
+
+        if backend == 'matplotlib':
+            return _plot_multi_iv_matplotlib(
+                data_series,
+                title=title,
+                log_scale=log_scale,
+                show=show,
+                **kwargs
+            )
+        else:
+            return _plot_multi_iv_plotly(
+                data_series,
+                title=title,
+                log_scale=log_scale,
+                show=show,
+                **kwargs
+            )
+
 
 class IVFileParser:
     """
