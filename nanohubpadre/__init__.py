@@ -30,6 +30,10 @@ from .parser import (
     BiasPoint,
     MeshStatistics,
     ConvergenceStatus,
+    parse_iv_file,
+    parse_iv_content,
+    IVFileParser,
+    IVData,
 )
 
 # Device factory functions
@@ -50,6 +54,9 @@ from .devices import (
     schottky_diode,
     solar_cell,
 )
+
+# Environment loading (use command)
+from .use import use, load_padre, list_available_modules
 
 __version__ = "0.0.1"
 __all__ = [
@@ -76,6 +83,11 @@ __all__ = [
     "BiasPoint",
     "MeshStatistics",
     "ConvergenceStatus",
+    # I-V file parser
+    "parse_iv_file",
+    "parse_iv_content",
+    "IVFileParser",
+    "IVData",
     # Device factory functions
     "create_pn_diode",
     "create_mos_capacitor",
@@ -92,4 +104,8 @@ __all__ = [
     "bjt",
     "schottky_diode",
     "solar_cell",
+    # Environment loading
+    "use",
+    "load_padre",
+    "list_available_modules",
 ]

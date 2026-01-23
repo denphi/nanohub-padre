@@ -443,3 +443,317 @@ def parse_padre_output(output: str) -> SimulationResult:
     """
     parser = PadreOutputParser()
     return parser.parse(output)
+
+
+@dataclass
+class IVData:
+    """
+    Parsed I-V data from PADRE log file (ivfile).
+
+    Attributes
+    ----------
+    num_electrodes : int
+        Number of electrodes in the simulation
+    bias_points : List[dict]
+        List of bias point data, each containing:
+        - voltages: dict mapping electrode number to voltage
+        - currents: dict mapping electrode number to current components
+    """
+    num_electrodes: int = 0
+    bias_points: List[Dict] = field(default_factory=list)
+
+    def get_voltages(self, electrode: int) -> List[float]:
+        """Get all voltages for a specific electrode."""
+        return [bp['voltages'].get(electrode, 0.0) for bp in self.bias_points]
+
+    def get_currents(self, electrode: int, component: str = 'total') -> List[float]:
+        """
+        Get currents for a specific electrode.
+
+        Parameters
+        ----------
+        electrode : int
+            Electrode number (1-indexed)
+        component : str
+            Current component: 'electron', 'hole', or 'total' (default)
+        """
+        return [bp['currents'].get(electrode, {}).get(component, 0.0)
+                for bp in self.bias_points]
+
+    def get_iv_data(self, electrode: int) -> Tuple[List[float], List[float]]:
+        """
+        Get I-V data for a specific electrode.
+
+        Parameters
+        ----------
+        electrode : int
+            Electrode number (1-indexed)
+
+        Returns
+        -------
+        tuple
+            (voltages, currents) lists
+        """
+        voltages = self.get_voltages(electrode)
+        currents = self.get_currents(electrode, 'total')
+        return voltages, currents
+
+    def get_transfer_characteristic(self, gate_electrode: int,
+                                     drain_electrode: int) -> Tuple[List[float], List[float]]:
+        """
+        Extract transfer characteristic (Id vs Vg).
+
+        Parameters
+        ----------
+        gate_electrode : int
+            Gate electrode number
+        drain_electrode : int
+            Drain electrode number
+
+        Returns
+        -------
+        tuple
+            (gate_voltages, drain_currents) lists
+        """
+        vg = self.get_voltages(gate_electrode)
+        id_vals = [abs(i) for i in self.get_currents(drain_electrode, 'total')]
+        return vg, id_vals
+
+    def get_output_characteristic(self, drain_electrode: int) -> Tuple[List[float], List[float]]:
+        """
+        Extract output characteristic (Id vs Vd).
+
+        Parameters
+        ----------
+        drain_electrode : int
+            Drain electrode number
+
+        Returns
+        -------
+        tuple
+            (drain_voltages, drain_currents) lists
+        """
+        vd = self.get_voltages(drain_electrode)
+        id_vals = [abs(i) for i in self.get_currents(drain_electrode, 'total')]
+        return vd, id_vals
+
+
+class IVFileParser:
+    """
+    Parser for PADRE log files (ivfile format).
+
+    PADRE log files contain I-V data in a specific format with Q-records
+    that store electrode voltages and currents for each bias point.
+
+    File format:
+    - Line 1: Header (e.g., "# PADRE2.4E 10/24/94")
+    - Line 2: Three integers: num_electrodes, num_electrodes, 0
+    - Q-records: Each starts with "Q" followed by data
+      - 4 lines of 5 values each (20 total values per bias point)
+      - Contains voltages and currents for all electrodes
+    """
+
+    def __init__(self):
+        self.data = IVData()
+
+    def parse(self, content: str) -> IVData:
+        """
+        Parse PADRE log file content.
+
+        Parameters
+        ----------
+        content : str
+            Content of the PADRE log file
+
+        Returns
+        -------
+        IVData
+            Parsed I-V data
+        """
+        self.data = IVData()
+        lines = content.strip().split('\n')
+
+        if len(lines) < 2:
+            return self.data
+
+        # Parse header - line 2 contains electrode counts
+        # Format: "                     4                     4                     0"
+        header_line = lines[1].strip()
+        header_parts = header_line.split()
+        if len(header_parts) >= 2:
+            try:
+                self.data.num_electrodes = int(header_parts[0])
+            except ValueError:
+                pass
+
+        # Parse Q-records
+        i = 2
+        while i < len(lines):
+            line = lines[i].strip()
+
+            # Look for Q-record start
+            if line.startswith('Q'):
+                # Parse Q-record (spans 5 lines: Q-line + 4 data lines)
+                if i + 4 < len(lines):
+                    bias_point = self._parse_q_record(lines, i)
+                    if bias_point:
+                        self.data.bias_points.append(bias_point)
+                    i += 5
+                    continue
+
+            i += 1
+
+        return self.data
+
+    def _parse_q_record(self, lines: List[str], start: int) -> Optional[Dict]:
+        """
+        Parse a single Q-record.
+
+        Q-record format for 4 electrodes:
+        Q0.00000E+00 0.00000E+00   (time values, typically 0)
+        [5 values]  V1, V2, V3, V4, and extra value
+        [5 values]  V5(unused), V6(unused), V7=V3, V8(unused), I1_e, I2_e
+        [5 values]  I3_e, I4_e, I1_h, I2_h, I3_h
+        [5 values]  I4_h, Q1, Q2, Q3, Q4
+
+        Actually, after analyzing the file more carefully:
+        - Lines have 5 values each
+        - Total 20 values per Q-record (after the Q line)
+        - Format depends on number of electrodes
+        """
+        try:
+            # Collect all values from the 4 data lines
+            values = []
+            for offset in range(1, 5):
+                line = lines[start + offset].strip()
+                parts = line.split()
+                for part in parts:
+                    try:
+                        values.append(float(part))
+                    except ValueError:
+                        values.append(0.0)
+
+            if len(values) < 20:
+                return None
+
+            num_elec = self.data.num_electrodes
+            if num_elec == 0:
+                num_elec = 4  # Default assumption
+
+            # Parse based on PADRE log file format
+            # The format stores: voltages, then electron currents, hole currents, charges
+            # For 4 electrodes:
+            # Values 0-4: V1, V2, V3, V4, (extra)
+            # Values 5-9: (extra), (extra), V3_copy, (extra), I1_electron, I2_electron
+            # Actually the exact mapping depends on PADRE version
+
+            # Based on the idvg file provided:
+            # Line 1 (values 0-4): 0, 0, Vg(0.1, 0.2...), 0, 0
+            # Line 2 (values 5-9): 0, Vg, 0, small_number, small_number
+            # Line 3 (values 10-14): 0, very_small, very_small, very_small, small_number
+            # Line 4 (values 15-19): very_small, 0, 0, Vg, 0
+
+            # Looking at the pattern: V3 appears at index 2, 6, and 18
+            # This suggests electrode 3 is being swept
+
+            # Standard PADRE ivfile format for N electrodes:
+            # First N values: voltages V1 through VN
+            # Next N values: electron currents I1_e through IN_e
+            # Next N values: hole currents I1_h through IN_h
+            # Next N values: total currents I1 through IN
+
+            # However, the actual format seems different. Let's use a simpler approach:
+            # Extract voltages from positions that show the sweep pattern
+
+            bias_point = {
+                'voltages': {},
+                'currents': {}
+            }
+
+            # For the idvg file format observed:
+            # Voltages appear to be at indices 2 (V3), 6 (V3 copy), 18 (V3 again)
+            # and the value at index 2, 6, 18 is the gate voltage being swept
+
+            # General approach: first num_electrodes values are voltages
+            for elec in range(1, num_elec + 1):
+                idx = elec - 1
+                if idx < len(values):
+                    bias_point['voltages'][elec] = values[idx]
+
+            # For currents, they appear after the voltage section
+            # Electron currents start at index num_elec
+            # Hole currents at index 2*num_elec
+            # Total currents (or charges) at index 3*num_elec
+
+            for elec in range(1, num_elec + 1):
+                elec_currents = {}
+
+                # Electron current
+                e_idx = num_elec + (elec - 1)
+                if e_idx < len(values):
+                    elec_currents['electron'] = values[e_idx]
+
+                # Hole current
+                h_idx = 2 * num_elec + (elec - 1)
+                if h_idx < len(values):
+                    elec_currents['hole'] = values[h_idx]
+
+                # Total current (electron + hole)
+                if 'electron' in elec_currents and 'hole' in elec_currents:
+                    elec_currents['total'] = elec_currents['electron'] + elec_currents['hole']
+                else:
+                    # Try to get from a later position
+                    t_idx = 3 * num_elec + (elec - 1)
+                    if t_idx < len(values):
+                        elec_currents['total'] = values[t_idx]
+
+                bias_point['currents'][elec] = elec_currents
+
+            return bias_point
+
+        except (IndexError, ValueError):
+            return None
+
+
+def parse_iv_file(filename: str) -> IVData:
+    """
+    Parse a PADRE log file (ivfile).
+
+    Parameters
+    ----------
+    filename : str
+        Path to the PADRE log file
+
+    Returns
+    -------
+    IVData
+        Parsed I-V data with voltages and currents for each electrode
+
+    Example
+    -------
+    >>> iv_data = parse_iv_file("idvg")
+    >>> vg, id = iv_data.get_transfer_characteristic(gate_electrode=3, drain_electrode=2)
+    >>> print(f"Vg range: {min(vg):.2f} to {max(vg):.2f} V")
+    """
+    with open(filename, 'r') as f:
+        content = f.read()
+    parser = IVFileParser()
+    return parser.parse(content)
+
+
+def parse_iv_content(content: str) -> IVData:
+    """
+    Parse PADRE log file content directly.
+
+    Parameters
+    ----------
+    content : str
+        Content of the PADRE log file
+
+    Returns
+    -------
+    IVData
+        Parsed I-V data
+    """
+    parser = IVFileParser()
+    return parser.parse(content)

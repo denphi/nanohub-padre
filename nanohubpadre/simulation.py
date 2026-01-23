@@ -25,7 +25,7 @@ from .regrid import Regrid, Adapt
 from .plotting import Plot1D, Plot2D, Contour, Vector
 from .options import Options, Load
 from .plot3d import Plot3D
-from .parser import parse_padre_output, SimulationResult
+from .parser import parse_padre_output, SimulationResult, parse_iv_file, IVData
 
 
 class End(PadreCommand):
@@ -522,6 +522,152 @@ class Simulation:
             verbose=verbose
         )
         return self.parse_output(result.stdout)
+
+    def parse_iv_file(self, filename: str) -> IVData:
+        """
+        Parse a PADRE log file (ivfile) created by the Log command.
+
+        Parameters
+        ----------
+        filename : str
+            Path to the PADRE log file (relative to working_dir or absolute)
+
+        Returns
+        -------
+        IVData
+            Parsed I-V data with voltages and currents for each electrode.
+            Use methods like get_transfer_characteristic() or get_iv_data()
+            to extract specific data.
+
+        Example
+        -------
+        >>> sim.add_log(Log(ivfile="idvg"))
+        >>> sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
+        >>> result = sim.run(padre_executable="padre")
+        >>> iv_data = sim.parse_iv_file("idvg")
+        >>> vg, id = iv_data.get_transfer_characteristic(gate_electrode=3, drain_electrode=2)
+        """
+        if not os.path.isabs(filename):
+            filename = os.path.join(self.working_dir, filename)
+        return parse_iv_file(filename)
+
+    def _get_log_files(self) -> list:
+        """Get list of log files from the simulation configuration."""
+        log_files = []
+        for cmd in self._commands:
+            if isinstance(cmd, Log) and cmd.ivfile:
+                log_files.append(cmd.ivfile)
+        return log_files
+
+    def get_iv_data(self, filename: Optional[str] = None,
+                    electrode: Optional[int] = None) -> Union[IVData, tuple]:
+        """
+        Get I-V data from the simulation log file.
+
+        If no filename is provided, uses the first ivfile from the simulation
+        configuration. If an electrode is specified, returns (voltages, currents)
+        tuple directly.
+
+        Parameters
+        ----------
+        filename : str, optional
+            Log file name. If None, infers from simulation Log commands.
+        electrode : int, optional
+            If specified, returns (voltages, currents) tuple for this electrode.
+            If None, returns the full IVData object.
+
+        Returns
+        -------
+        IVData or tuple
+            If electrode is None: IVData object with all parsed data
+            If electrode is specified: (voltages, currents) tuple
+
+        Raises
+        ------
+        ValueError
+            If no filename provided and no Log command with ivfile found
+
+        Example
+        -------
+        >>> sim.add_log(Log(ivfile="idvg"))
+        >>> sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
+        >>> result = sim.run()
+        >>> # Get full IVData object
+        >>> iv_data = sim.get_iv_data()
+        >>> # Or get specific electrode data directly
+        >>> voltages, currents = sim.get_iv_data(electrode=2)
+        """
+        if filename is None:
+            log_files = self._get_log_files()
+            if not log_files:
+                raise ValueError(
+                    "No Log command with ivfile found in simulation. "
+                    "Either add Log(ivfile='...') or specify filename parameter."
+                )
+            filename = log_files[-1]  # Use the last log file
+
+        iv_data = self.parse_iv_file(filename)
+
+        if electrode is not None:
+            return iv_data.get_iv_data(electrode)
+        return iv_data
+
+    def get_transfer_characteristic(self, gate_electrode: int,
+                                     drain_electrode: int,
+                                     filename: Optional[str] = None) -> tuple:
+        """
+        Get transfer characteristic (Id vs Vg) from simulation log file.
+
+        Parameters
+        ----------
+        gate_electrode : int
+            Gate electrode number
+        drain_electrode : int
+            Drain electrode number
+        filename : str, optional
+            Log file name. If None, infers from simulation Log commands.
+
+        Returns
+        -------
+        tuple
+            (gate_voltages, drain_currents) lists
+
+        Example
+        -------
+        >>> sim.add_log(Log(ivfile="idvg"))
+        >>> sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
+        >>> result = sim.run()
+        >>> vg, id = sim.get_transfer_characteristic(gate_electrode=3, drain_electrode=2)
+        """
+        iv_data = self.get_iv_data(filename=filename)
+        return iv_data.get_transfer_characteristic(gate_electrode, drain_electrode)
+
+    def get_output_characteristic(self, drain_electrode: int,
+                                   filename: Optional[str] = None) -> tuple:
+        """
+        Get output characteristic (Id vs Vd) from simulation log file.
+
+        Parameters
+        ----------
+        drain_electrode : int
+            Drain electrode number
+        filename : str, optional
+            Log file name. If None, infers from simulation Log commands.
+
+        Returns
+        -------
+        tuple
+            (drain_voltages, drain_currents) lists
+
+        Example
+        -------
+        >>> sim.add_log(Log(ivfile="idvd"))
+        >>> sim.add_solve(Solve(v2=0, vstep=0.1, nsteps=20, electrode=2))
+        >>> result = sim.run()
+        >>> vd, id = sim.get_output_characteristic(drain_electrode=2)
+        """
+        iv_data = self.get_iv_data(filename=filename)
+        return iv_data.get_output_characteristic(drain_electrode)
 
     def __repr__(self) -> str:
         parts = []
