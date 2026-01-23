@@ -23,6 +23,14 @@ from .plotting import Plot1D, Plot2D, Contour, Vector
 from .options import Options, Load
 from .plot3d import Plot3D
 from .base import Comment, Title
+from .parser import (
+    parse_padre_output,
+    PadreOutputParser,
+    SimulationResult,
+    BiasPoint,
+    MeshStatistics,
+    ConvergenceStatus,
+)
 
 # Device factory functions
 from .devices import (
@@ -61,6 +69,13 @@ __all__ = [
     "Options", "Load",
     "Plot3D",
     "Comment", "Title",
+    # Parser
+    "parse_padre_output",
+    "PadreOutputParser",
+    "SimulationResult",
+    "BiasPoint",
+    "MeshStatistics",
+    "ConvergenceStatus",
     # Device factory functions
     "create_pn_diode",
     "create_mos_capacitor",

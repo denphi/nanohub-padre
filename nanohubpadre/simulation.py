@@ -25,6 +25,7 @@ from .regrid import Regrid, Adapt
 from .plotting import Plot1D, Plot2D, Contour, Vector
 from .options import Options, Load
 from .plot3d import Plot3D
+from .parser import parse_padre_output, SimulationResult
 
 
 class End(PadreCommand):
@@ -346,7 +347,9 @@ class Simulation:
     def run(self, padre_executable: str = "padre",
             input_file: Optional[str] = None,
             output_file: Optional[str] = None,
-            capture_output: bool = True) -> subprocess.CompletedProcess:
+            capture_output: bool = True,
+            use_stdin: bool = False,
+            verbose: bool = False) -> subprocess.CompletedProcess:
         """
         Run the PADRE simulation.
 
@@ -359,7 +362,13 @@ class Simulation:
         output_file : str, optional
             Output file for PADRE stdout
         capture_output : bool
-            Whether to capture stdout/stderr
+            Whether to capture stdout/stderr (ignored if verbose=True)
+        use_stdin : bool
+            If True, pass input via stdin (padre < file.inp).
+            If False, pass input file as argument (padre file.inp).
+        verbose : bool
+            If True, stream output to console in real-time.
+            Overrides capture_output.
 
         Returns
         -------
@@ -368,31 +377,151 @@ class Simulation:
         """
         # Write deck to file
         if input_file is None:
-            fd, input_file = tempfile.mkstemp(suffix=".inp", dir=self.working_dir)
+            # Use short filename to avoid PADRE's filename length limit
+            fd, input_file = tempfile.mkstemp(suffix=".inp", prefix="p", dir=self.working_dir)
             os.close(fd)
 
-        self.write_deck(input_file)
+        deck_path = self.write_deck(input_file)
+
+        # PADRE has a filename length limit (~60 chars). Use basename if running in working_dir
+        if not use_stdin:
+            # Check if the path is too long for PADRE
+            if len(deck_path) > 60:
+                # Use just the filename if we're in the same directory
+                deck_path = os.path.basename(deck_path)
 
         # Build command
-        cmd = [padre_executable]
+        if use_stdin:
+            cmd = [padre_executable]
+        else:
+            cmd = [padre_executable, deck_path]
 
         # Run PADRE
-        result = subprocess.run(
-            cmd,
-            stdin=open(input_file, 'r'),
-            stdout=subprocess.PIPE if capture_output else None,
-            stderr=subprocess.PIPE if capture_output else None,
-            cwd=self.working_dir,
-            text=True
-        )
+        if verbose:
+            # Stream output in real-time
+            output_lines = []
+            if use_stdin:
+                with open(deck_path, 'r') as infile:
+                    process = subprocess.Popen(
+                        cmd,
+                        stdin=infile,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        cwd=self.working_dir,
+                        text=True,
+                        bufsize=1
+                    )
+            else:
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    cwd=self.working_dir,
+                    text=True,
+                    bufsize=1
+                )
+
+            # Stream output line by line
+            for line in process.stdout:
+                print(line, end='', flush=True)
+                output_lines.append(line)
+
+            process.wait()
+            result = subprocess.CompletedProcess(
+                args=cmd,
+                returncode=process.returncode,
+                stdout=''.join(output_lines),
+                stderr=''
+            )
+        elif use_stdin:
+            with open(deck_path, 'r') as infile:
+                result = subprocess.run(
+                    cmd,
+                    stdin=infile,
+                    stdout=subprocess.PIPE if capture_output else None,
+                    stderr=subprocess.PIPE if capture_output else None,
+                    cwd=self.working_dir,
+                    text=True
+                )
+        else:
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE if capture_output else None,
+                stderr=subprocess.PIPE if capture_output else None,
+                cwd=self.working_dir,
+                text=True
+            )
 
         # Save output if requested
-        if output_file and capture_output and result.stdout:
+        if output_file and (capture_output or verbose) and result.stdout:
             output_path = os.path.join(self.working_dir, output_file)
             with open(output_path, 'w') as f:
                 f.write(result.stdout)
 
         return result
+
+    def parse_output(self, output: str) -> SimulationResult:
+        """
+        Parse PADRE simulation output.
+
+        Parameters
+        ----------
+        output : str
+            PADRE stdout output string (e.g., from result.stdout)
+
+        Returns
+        -------
+        SimulationResult
+            Parsed simulation results containing mesh statistics,
+            bias points, I-V data, convergence info, and warnings.
+
+        Example
+        -------
+        >>> result = sim.run(padre_executable="padre")
+        >>> parsed = sim.parse_output(result.stdout)
+        >>> print(parsed.summary())
+        >>> vg, id = parsed.get_transfer_characteristic(gate_electrode=3, drain_electrode=2)
+        """
+        return parse_padre_output(output)
+
+    def run_and_parse(self, padre_executable: str = "padre",
+                      input_file: Optional[str] = None,
+                      output_file: Optional[str] = None,
+                      verbose: bool = False) -> SimulationResult:
+        """
+        Run the PADRE simulation and parse the output in one step.
+
+        Parameters
+        ----------
+        padre_executable : str
+            Path to PADRE executable (default: "padre")
+        input_file : str, optional
+            Input deck filename. If None, creates a temporary file.
+        output_file : str, optional
+            Output file for PADRE stdout
+        verbose : bool
+            If True, stream output to console in real-time.
+
+        Returns
+        -------
+        SimulationResult
+            Parsed simulation results
+
+        Example
+        -------
+        >>> parsed = sim.run_and_parse(padre_executable="padre")
+        >>> print(f"Converged: {parsed.all_converged}")
+        >>> print(f"Bias points: {parsed.num_bias_points}")
+        >>> voltages, currents = parsed.get_iv_data(electrode=2)
+        """
+        result = self.run(
+            padre_executable=padre_executable,
+            input_file=input_file,
+            output_file=output_file,
+            capture_output=True,
+            verbose=verbose
+        )
+        return self.parse_output(result.stdout)
 
     def __repr__(self) -> str:
         parts = []
