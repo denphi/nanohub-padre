@@ -3,13 +3,13 @@ requires = ["setuptools>=45", "wheel", "setuptools-scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pypadre"
-version = "0.1.0"
+name = "nanohub-padre"
+version = "0.0.1"
 description = "Python library for creating and running PADRE semiconductor device simulations"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "PyPADRE Contributors"}
+    {name = "nanohub-padre Contributors"}
 ]
 requires-python = ">=3.7"
 classifiers = [
@@ -39,12 +39,12 @@ docs = [
 ]
 
 [project.urls]
-Documentation = "https://pypadre.readthedocs.io/"
-Repository = "https://github.com/yourusername/padre"
-Issues = "https://github.com/yourusername/padre/issues"
+Documentation = "https://nanohub-padre.readthedocs.io/"
+Repository = "https://github.com/nanohub/padre"
+Issues = "https://github.com/nanohub/padre/issues"
 
 [tool.setuptools.packages.find]
-include = ["pypadre*"]
+include = ["nanohubpadre*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
