@@ -1,14 +1,14 @@
 Device Factory Functions
 ========================
 
-PyPADRE provides convenient factory functions for creating common semiconductor devices.
+nanohub-padre provides convenient factory functions for creating common semiconductor devices.
 These functions simplify the process of setting up device structures by providing
 sensible defaults while allowing full customization.
 
 Overview
 --------
 
-The ``pypadre.devices`` module contains factory functions for:
+The ``nanohubpadre.devices`` module contains factory functions for:
 
 * **PN Diode** - Basic PN junction diode
 * **MOS Capacitor** - Metal-oxide-semiconductor capacitor for C-V analysis
@@ -26,7 +26,7 @@ Quick Example
 
 .. code-block:: python
 
-   from pypadre import create_mosfet, Solve, Log
+   from nanohubpadre import create_mosfet, Solve, Log
 
    # Create an NMOS transistor with one line
    sim = create_mosfet(channel_length=0.05, device_type="nmos")
@@ -42,13 +42,13 @@ Quick Example
 PN Diode
 --------
 
-.. autofunction:: pypadre.devices.pn_diode.create_pn_diode
+.. autofunction:: nanohubpadre.devices.pn_diode.create_pn_diode
 
 **Example:**
 
 .. code-block:: python
 
-   from pypadre import create_pn_diode, Solve, Log
+   from nanohubpadre import create_pn_diode, Solve, Log
 
    sim = create_pn_diode(
        length=1.0,
@@ -65,13 +65,13 @@ PN Diode
 MOS Capacitor
 -------------
 
-.. autofunction:: pypadre.devices.mos_capacitor.create_mos_capacitor
+.. autofunction:: nanohubpadre.devices.mos_capacitor.create_mos_capacitor
 
 **Example:**
 
 .. code-block:: python
 
-   from pypadre import create_mos_capacitor, Solve, Log
+   from nanohubpadre import create_mos_capacitor, Solve, Log
 
    sim = create_mos_capacitor(
        oxide_thickness=0.002,      # 2nm oxide
@@ -91,13 +91,13 @@ MOS Capacitor
 MOSFET
 ------
 
-.. autofunction:: pypadre.devices.mosfet.create_mosfet
+.. autofunction:: nanohubpadre.devices.mosfet.create_mosfet
 
 **Example:**
 
 .. code-block:: python
 
-   from pypadre import create_mosfet, Solve, Log, Load
+   from nanohubpadre import create_mosfet, Solve, Log, Load
 
    # Create NMOS transistor
    sim = create_mosfet(
@@ -124,13 +124,13 @@ MOSFET
 MESFET
 ------
 
-.. autofunction:: pypadre.devices.mesfet.create_mesfet
+.. autofunction:: nanohubpadre.devices.mesfet.create_mesfet
 
 **Example:**
 
 .. code-block:: python
 
-   from pypadre import create_mesfet, Solve, Log
+   from nanohubpadre import create_mesfet, Solve, Log
 
    sim = create_mesfet(
        channel_length=0.2,
@@ -148,13 +148,13 @@ MESFET
 Bipolar Junction Transistor (BJT)
 ---------------------------------
 
-.. autofunction:: pypadre.devices.bjt.create_bjt
+.. autofunction:: nanohubpadre.devices.bjt.create_bjt
 
 **Example:**
 
 .. code-block:: python
 
-   from pypadre import create_bjt, Solve, Log
+   from nanohubpadre import create_bjt, Solve, Log
 
    sim = create_bjt(
        emitter_width=1.0,
@@ -174,13 +174,13 @@ Bipolar Junction Transistor (BJT)
 Schottky Diode
 --------------
 
-.. autofunction:: pypadre.devices.schottky_diode.create_schottky_diode
+.. autofunction:: nanohubpadre.devices.schottky_diode.create_schottky_diode
 
 **Example:**
 
 .. code-block:: python
 
-   from pypadre import create_schottky_diode, Solve, Log
+   from nanohubpadre import create_schottky_diode, Solve, Log
 
    sim = create_schottky_diode(
        length=2.0,
@@ -197,13 +197,13 @@ Schottky Diode
 Solar Cell
 ----------
 
-.. autofunction:: pypadre.devices.solar_cell.create_solar_cell
+.. autofunction:: nanohubpadre.devices.solar_cell.create_solar_cell
 
 **Example:**
 
 .. code-block:: python
 
-   from pypadre import create_solar_cell, Solve, Log
+   from nanohubpadre import create_solar_cell, Solve, Log
 
    sim = create_solar_cell(
        emitter_depth=0.5,
@@ -226,7 +226,7 @@ For convenience, shorter aliases are available for all factory functions:
 
 .. code-block:: python
 
-   from pypadre import (
+   from nanohubpadre import (
        pn_diode,        # alias for create_pn_diode
        mos_capacitor,   # alias for create_mos_capacitor
        mosfet,          # alias for create_mosfet
@@ -247,7 +247,7 @@ The returned ``Simulation`` object can be further customized:
 
 .. code-block:: python
 
-   from pypadre import create_pn_diode, Material, Models
+   from nanohubpadre import create_pn_diode, Material, Models
 
    # Create base device
    sim = create_pn_diode()

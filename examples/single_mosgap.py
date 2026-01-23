@@ -6,10 +6,7 @@ This script generates the same PADRE input deck as 'single mosgap.in'
 Single MOS gap structure (oxide-silicon)
 """
 
-import sys
-sys.path.insert(0, '..')
-
-from pypadre import (
+from nanohubpadre import (
     Simulation, Mesh, Region, Electrode, Doping, Contact,
     Material, Models, System, Solve, Log, Plot1D
 )

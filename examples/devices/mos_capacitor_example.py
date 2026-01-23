@@ -6,7 +6,7 @@ Demonstrates how to create and simulate a MOS capacitor for C-V analysis
 using the create_mos_capacitor factory function.
 """
 
-from pypadre import create_mos_capacitor, Solve, Log, Plot1D
+from nanohubpadre import create_mos_capacitor, Solve, Log, Plot1D
 
 
 def main():

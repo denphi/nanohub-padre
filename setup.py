@@ -1,5 +1,5 @@
 """
-Setup file for PyPADRE - Python library for PADRE semiconductor device simulator.
+Setup file for nanohub-padre - Python library for PADRE semiconductor device simulator.
 """
 
 from setuptools import setup, find_packages
@@ -8,14 +8,14 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read() if __import__("os").path.exists("README.md") else ""
 
 setup(
-    name="pypadre",
-    version="0.1.0",
+    name="nanohub-padre",
+    version="0.0.1",
     author="",
     author_email="",
     description="Python library for PADRE semiconductor device simulator",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="",
+    url="https://github.com/nanohub/nanohub-padre",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",

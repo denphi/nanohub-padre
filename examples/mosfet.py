@@ -6,7 +6,7 @@ This example demonstrates a more complex MOSFET structure with
 gate oxide, source/drain regions, and multiple bias conditions.
 """
 
-from pypadre import (
+from nanohubpadre import (
     Simulation, Mesh, Region, Electrode, Doping, Contact,
     Models, System, Method, Solve, Log, Interface, Regrid
 )

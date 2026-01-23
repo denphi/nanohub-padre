@@ -6,7 +6,7 @@ Demonstrates how to create and simulate a Schottky barrier diode
 using the create_schottky_diode factory function.
 """
 
-from pypadre import create_schottky_diode, Solve, Log, Plot1D
+from nanohubpadre import create_schottky_diode, Solve, Log, Plot1D
 
 
 def main():

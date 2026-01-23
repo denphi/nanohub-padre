@@ -6,10 +6,7 @@ This script generates the same PADRE input deck as mesfet.in
 MESFET structure
 """
 
-import sys
-sys.path.insert(0, '..')
-
-from pypadre import (
+from nanohubpadre import (
     Simulation, Mesh, Region, Electrode, Doping, Contact,
     Models, System, Solve, Log, Plot3D
 )

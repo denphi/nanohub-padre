@@ -6,7 +6,7 @@ This example demonstrates how to set up a basic PN junction diode
 simulation with PADRE.
 """
 
-from pypadre import (
+from nanohubpadre import (
     Simulation, Mesh, Region, Electrode, Doping, Contact,
     Models, System, Method, Solve, Log
 )

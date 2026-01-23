@@ -1,14 +1,15 @@
-# PyPADRE
+# nanohub-padre
 
 A Python library for creating and running PADRE semiconductor device simulations.
 
 ## Overview
 
-PyPADRE provides a Pythonic interface to generate PADRE input decks, making it easier to set up complex device simulations programmatically. PADRE (Physics-based Accurate Device Resolution and Evaluation) is a 2D/3D device simulator that solves the drift-diffusion equations for semiconductor devices.
+nanohub-padre provides a Pythonic interface to generate PADRE input decks, making it easier to set up complex device simulations programmatically. PADRE (Physics-based Accurate Device Resolution and Evaluation) is a 2D/3D device simulator that solves the drift-diffusion equations for semiconductor devices.
 
 ## Features
 
 - **Pythonic Interface**: Define meshes, regions, doping profiles, and solver settings using Python objects
+- **Device Factory Functions**: Pre-built functions to create common devices (PN diode, MOSFET, BJT, solar cell, etc.)
 - **Complete PADRE Support**: Covers mesh generation, material properties, physical models, and solve commands
 - **Validation**: Built-in parameter validation and helpful error messages
 - **Examples**: Ready-to-run examples for common device structures
@@ -16,21 +17,44 @@ PyPADRE provides a Pythonic interface to generate PADRE input decks, making it e
 ## Installation
 
 ```bash
-pip install pypadre
+pip install nanohub-padre
 ```
 
 Or install from source:
 
 ```bash
-git clone https://github.com/yourusername/padre.git
-cd padre
+git clone https://github.com/nanohub/nanohub-padre.git
+cd nanohub-padre
 pip install -e .
 ```
 
 ## Quick Start
 
+### Using Device Factory Functions (Recommended)
+
 ```python
-from pypadre import (
+from nanohubpadre import create_mosfet, Solve, Log
+
+# Create an NMOS transistor with one line
+sim = create_mosfet(
+    channel_length=0.05,
+    device_type="nmos",
+    temperature=300
+)
+
+# Add solve commands
+sim.add_solve(Solve(initial=True))
+sim.add_log(Log(ivfile="idvg"))
+sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
+
+# Generate the input deck
+print(sim.generate_deck())
+```
+
+### Building from Scratch
+
+```python
+from nanohubpadre import (
     Simulation, Mesh, Region, Electrode, Doping,
     Contact, Models, System, Solve
 )
@@ -70,6 +94,20 @@ sim.add_solve(Solve(initial=True))
 print(sim.generate_deck())
 ```
 
+## Device Factory Functions
+
+The library includes factory functions for common devices:
+
+| Function | Description |
+|----------|-------------|
+| `create_pn_diode` | PN junction diode |
+| `create_mos_capacitor` | MOS capacitor for C-V analysis |
+| `create_mosfet` | NMOS/PMOS transistor |
+| `create_mesfet` | Metal-semiconductor FET |
+| `create_bjt` | NPN/PNP bipolar transistor |
+| `create_schottky_diode` | Schottky barrier diode |
+| `create_solar_cell` | PN junction solar cell |
+
 ## Examples
 
 The `examples/` directory contains Python equivalents of common PADRE simulations:
@@ -80,6 +118,13 @@ The `examples/` directory contains Python equivalents of common PADRE simulation
 - **mesfet.py**: Metal-Semiconductor FET simulation
 - **single_mosgap.py**: Simple oxide-silicon structure
 
+Device factory examples in `examples/devices/`:
+
+- **pn_diode_example.py**: PN diode using factory function
+- **mosfet_example.py**: NMOS using factory function
+- **bjt_example.py**: NPN BJT using factory function
+- **solar_cell_example.py**: Solar cell using factory function
+
 Run an example:
 
 ```bash
@@ -89,7 +134,7 @@ padre < pndiode.inp > pndiode.out
 
 ## Supported Commands
 
-PyPADRE supports all major PADRE commands:
+nanohub-padre supports all major PADRE commands:
 
 | Category | Commands |
 |----------|----------|
@@ -105,7 +150,7 @@ PyPADRE supports all major PADRE commands:
 
 ## Documentation
 
-Full documentation is available at [https://pypadre.readthedocs.io/](https://pypadre.readthedocs.io/)
+Full documentation is available at [https://nanohub-padre.readthedocs.io/](https://nanohub-padre.readthedocs.io/)
 
 ## Testing
 

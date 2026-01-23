@@ -1,9 +1,9 @@
-.. PyPADRE documentation master file
+.. nanohub-padre documentation master file
 
-Welcome to PyPADRE's documentation!
-===================================
+Welcome to nanohub-padre's documentation!
+=========================================
 
-**PyPADRE** is a Python library for creating and running PADRE semiconductor device simulations.
+**nanohub-padre** is a Python library for creating and running PADRE semiconductor device simulations.
 It provides a Pythonic interface to generate PADRE input decks, making it easier to set up
 complex device simulations programmatically.
 
@@ -26,7 +26,7 @@ Quick Start
 
 .. code-block:: python
 
-   from pypadre import create_mosfet, Solve, Log
+   from nanohubpadre import create_mosfet, Solve, Log
 
    # Create an NMOS transistor with one line
    sim = create_mosfet(
@@ -47,7 +47,7 @@ Quick Start
 
 .. code-block:: python
 
-   from pypadre import Simulation, Mesh, Region, Electrode, Doping, Models, System, Solve
+   from nanohubpadre import Simulation, Mesh, Region, Electrode, Doping, Models, System, Solve
 
    # Create a simple PN diode simulation
    sim = Simulation(title="Simple PN Diode")
@@ -85,14 +85,14 @@ Installation
 
 .. code-block:: bash
 
-   pip install pypadre
+   pip install nanohub-padre
 
 Or install from source:
 
 .. code-block:: bash
 
-   git clone https://github.com/yourusername/padre.git
-   cd padre
+   git clone https://github.com/nanohub/nanohub-padre.git
+   cd nanohub-padre
    pip install -e .
 
 .. toctree::

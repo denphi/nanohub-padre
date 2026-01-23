@@ -6,7 +6,7 @@ Demonstrates how to create and simulate an NPN BJT for
 common-emitter characteristics using the create_bjt factory function.
 """
 
-from pypadre import create_bjt, Solve, Log, Plot1D
+from nanohubpadre import create_bjt, Solve, Log, Plot1D, Load
 
 
 def main():
@@ -92,9 +92,6 @@ def main():
     # Generate and print the input deck
     print(sim.generate_deck())
 
-
-# Need to import Load for the example
-from pypadre import Load
 
 if __name__ == "__main__":
     main()

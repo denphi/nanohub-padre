@@ -6,10 +6,7 @@ This script generates the same PADRE input deck as moscap.in
 MOS Capacitor structure with oxide-silicon-oxide
 """
 
-import sys
-sys.path.insert(0, '..')
-
-from pypadre import (
+from nanohubpadre import (
     Simulation, Mesh, Region, Electrode, Doping, Contact,
     Material, Models, System, Solve, Log, Plot1D
 )

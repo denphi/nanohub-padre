@@ -6,7 +6,7 @@ Demonstrates how to create and simulate a Metal-Semiconductor FET
 using the create_mesfet factory function.
 """
 
-from pypadre import create_mesfet, Solve, Log, Plot3D
+from nanohubpadre import create_mesfet, Solve, Log, Plot3D
 
 
 def main():

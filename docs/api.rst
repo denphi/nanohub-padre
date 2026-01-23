@@ -6,43 +6,43 @@ This section provides detailed API documentation for all PyPADRE classes.
 Device Factory Functions
 ------------------------
 
-.. automodule:: pypadre.devices
+.. automodule:: nanohubpadre.devices
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pypadre.devices.pn_diode
+.. automodule:: nanohubpadre.devices.pn_diode
    :members:
    :undoc-members:
 
-.. automodule:: pypadre.devices.mos_capacitor
+.. automodule:: nanohubpadre.devices.mos_capacitor
    :members:
    :undoc-members:
 
-.. automodule:: pypadre.devices.mosfet
+.. automodule:: nanohubpadre.devices.mosfet
    :members:
    :undoc-members:
 
-.. automodule:: pypadre.devices.mesfet
+.. automodule:: nanohubpadre.devices.mesfet
    :members:
    :undoc-members:
 
-.. automodule:: pypadre.devices.bjt
+.. automodule:: nanohubpadre.devices.bjt
    :members:
    :undoc-members:
 
-.. automodule:: pypadre.devices.schottky_diode
+.. automodule:: nanohubpadre.devices.schottky_diode
    :members:
    :undoc-members:
 
-.. automodule:: pypadre.devices.solar_cell
+.. automodule:: nanohubpadre.devices.solar_cell
    :members:
    :undoc-members:
 
 Simulation
 ----------
 
-.. automodule:: pypadre.simulation
+.. automodule:: nanohubpadre.simulation
    :members:
    :undoc-members:
    :show-inheritance:
@@ -50,7 +50,7 @@ Simulation
 Base Classes
 ------------
 
-.. automodule:: pypadre.base
+.. automodule:: nanohubpadre.base
    :members:
    :undoc-members:
    :show-inheritance:
@@ -58,7 +58,7 @@ Base Classes
 Mesh
 ----
 
-.. automodule:: pypadre.mesh
+.. automodule:: nanohubpadre.mesh
    :members:
    :undoc-members:
    :show-inheritance:
@@ -66,7 +66,7 @@ Mesh
 Region
 ------
 
-.. automodule:: pypadre.region
+.. automodule:: nanohubpadre.region
    :members:
    :undoc-members:
    :show-inheritance:
@@ -74,7 +74,7 @@ Region
 Electrode
 ---------
 
-.. automodule:: pypadre.electrode
+.. automodule:: nanohubpadre.electrode
    :members:
    :undoc-members:
    :show-inheritance:
@@ -82,7 +82,7 @@ Electrode
 Doping
 ------
 
-.. automodule:: pypadre.doping
+.. automodule:: nanohubpadre.doping
    :members:
    :undoc-members:
    :show-inheritance:
@@ -90,7 +90,7 @@ Doping
 Contact
 -------
 
-.. automodule:: pypadre.contact
+.. automodule:: nanohubpadre.contact
    :members:
    :undoc-members:
    :show-inheritance:
@@ -98,7 +98,7 @@ Contact
 Material
 --------
 
-.. automodule:: pypadre.material
+.. automodule:: nanohubpadre.material
    :members:
    :undoc-members:
    :show-inheritance:
@@ -106,7 +106,7 @@ Material
 Models
 ------
 
-.. automodule:: pypadre.models
+.. automodule:: nanohubpadre.models
    :members:
    :undoc-members:
    :show-inheritance:
@@ -114,7 +114,7 @@ Models
 Solver
 ------
 
-.. automodule:: pypadre.solver
+.. automodule:: nanohubpadre.solver
    :members:
    :undoc-members:
    :show-inheritance:
@@ -122,7 +122,7 @@ Solver
 Log
 ---
 
-.. automodule:: pypadre.log
+.. automodule:: nanohubpadre.log
    :members:
    :undoc-members:
    :show-inheritance:
@@ -130,7 +130,7 @@ Log
 Options
 -------
 
-.. automodule:: pypadre.options
+.. automodule:: nanohubpadre.options
    :members:
    :undoc-members:
    :show-inheritance:
@@ -138,7 +138,7 @@ Options
 Interface
 ---------
 
-.. automodule:: pypadre.interface
+.. automodule:: nanohubpadre.interface
    :members:
    :undoc-members:
    :show-inheritance:
@@ -146,7 +146,7 @@ Interface
 Regrid
 ------
 
-.. automodule:: pypadre.regrid
+.. automodule:: nanohubpadre.regrid
    :members:
    :undoc-members:
    :show-inheritance:
@@ -154,7 +154,7 @@ Regrid
 Plotting
 --------
 
-.. automodule:: pypadre.plotting
+.. automodule:: nanohubpadre.plotting
    :members:
    :undoc-members:
    :show-inheritance:
@@ -162,7 +162,7 @@ Plotting
 Plot3D
 ------
 
-.. automodule:: pypadre.plot3d
+.. automodule:: nanohubpadre.plot3d
    :members:
    :undoc-members:
    :show-inheritance:

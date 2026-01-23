@@ -6,7 +6,7 @@ Demonstrates how to create and simulate a silicon solar cell
 using the create_solar_cell factory function.
 """
 
-from pypadre import create_solar_cell, Solve, Log, Plot1D
+from nanohubpadre import create_solar_cell, Solve, Log, Plot1D
 
 
 def main():

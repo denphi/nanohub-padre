@@ -11,7 +11,7 @@ See the :doc:`devices` documentation for details on all available factories.
 
 .. code-block:: python
 
-   from pypadre import create_pn_diode, create_mosfet, create_bjt, Solve, Log
+   from nanohubpadre import create_pn_diode, create_mosfet, create_bjt, Solve, Log
 
    # Create devices with one line each
    diode = create_pn_diode(p_doping=1e17, n_doping=1e17)
@@ -200,14 +200,14 @@ The example functions can be modified for different device parameters:
 
    # Modify doping levels
    sim._dopings.clear()
-   from pypadre import Doping
+   from nanohubpadre import Doping
    sim.add_doping(Doping(region=1, p_type=True, concentration=5e16, uniform=True,
                         x_left=0, x_right=0.5, y_top=0, y_bottom=1))
    sim.add_doping(Doping(region=1, n_type=True, concentration=1e18, uniform=True,
                         x_left=0.5, x_right=1.0, y_top=0, y_bottom=1))
 
    # Change temperature
-   from pypadre import Models
+   from nanohubpadre import Models
    sim.models = Models(srh=True, conmob=True, fldmob=True, temperature=350)
 
    print(sim.generate_deck())
@@ -219,7 +219,7 @@ Use the examples as templates for your own devices:
 
 .. code-block:: python
 
-   from pypadre import (
+   from nanohubpadre import (
        Simulation, Mesh, Region, Electrode, Doping,
        Contact, Material, Models, System, Solve
    )

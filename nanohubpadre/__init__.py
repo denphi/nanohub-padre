@@ -1,8 +1,10 @@
 """
-PyPADRE - Python library for PADRE semiconductor device simulator
+nanohub-padre - Python library for PADRE semiconductor device simulator
 
 This library provides a Pythonic interface to create and run PADRE simulations
 for semiconductor device modeling.
+
+Import as: import nanohubpadre
 """
 
 from .simulation import Simulation
@@ -41,7 +43,7 @@ from .devices import (
     solar_cell,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.0.1"
 __all__ = [
     "Simulation",
     "Mesh", "XMesh", "YMesh", "ZMesh",

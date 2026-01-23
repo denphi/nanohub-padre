@@ -10,10 +10,10 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'PyPADRE'
-copyright = '2024, PyPADRE Contributors'
-author = 'PyPADRE Contributors'
-release = '0.1.0'
+project = 'nanohub-padre'
+copyright = '2024, nanohub-padre Contributors'
+author = 'nanohub-padre Contributors'
+release = '0.0.1'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

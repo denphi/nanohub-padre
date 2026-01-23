@@ -1,15 +1,13 @@
 """
 Unit tests for device factory functions.
 
-Tests the pypadre.devices module factory functions for creating
+Tests the nanohubpadre.devices module factory functions for creating
 common semiconductor device simulations.
 """
 
 import unittest
-import sys
-sys.path.insert(0, '..')
 
-from pypadre import (
+from nanohubpadre import (
     create_pn_diode,
     create_mos_capacitor,
     create_mosfet,
@@ -336,43 +334,43 @@ class TestDeviceAliases(unittest.TestCase):
 
     def test_pn_diode_alias(self):
         """Test that pn_diode alias works."""
-        from pypadre import pn_diode
+        from nanohubpadre import pn_diode
         sim = pn_diode()
         self.assertIsInstance(sim, Simulation)
 
     def test_mos_capacitor_alias(self):
         """Test that mos_capacitor alias works."""
-        from pypadre import mos_capacitor
+        from nanohubpadre import mos_capacitor
         sim = mos_capacitor()
         self.assertIsInstance(sim, Simulation)
 
     def test_mosfet_alias(self):
         """Test that mosfet alias works."""
-        from pypadre import mosfet
+        from nanohubpadre import mosfet
         sim = mosfet()
         self.assertIsInstance(sim, Simulation)
 
     def test_mesfet_alias(self):
         """Test that mesfet alias works."""
-        from pypadre import mesfet
+        from nanohubpadre import mesfet
         sim = mesfet()
         self.assertIsInstance(sim, Simulation)
 
     def test_bjt_alias(self):
         """Test that bjt alias works."""
-        from pypadre import bjt
+        from nanohubpadre import bjt
         sim = bjt()
         self.assertIsInstance(sim, Simulation)
 
     def test_schottky_diode_alias(self):
         """Test that schottky_diode alias works."""
-        from pypadre import schottky_diode
+        from nanohubpadre import schottky_diode
         sim = schottky_diode()
         self.assertIsInstance(sim, Simulation)
 
     def test_solar_cell_alias(self):
         """Test that solar_cell alias works."""
-        from pypadre import solar_cell
+        from nanohubpadre import solar_cell
         sim = solar_cell()
         self.assertIsInstance(sim, Simulation)
 

@@ -5,10 +5,7 @@ Python equivalent of pndiode.in for PADRE simulation.
 This script generates the same PADRE input deck as pndiode.in
 """
 
-import sys
-sys.path.insert(0, '..')
-
-from pypadre import (
+from nanohubpadre import (
     Simulation, Mesh, Region, Electrode, Doping, Contact,
     Material, Models, System, Solve, Log, Plot1D, Options
 )

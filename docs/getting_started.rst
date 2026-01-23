@@ -1,7 +1,7 @@
 Getting Started
 ===============
 
-This guide will help you get started with PyPADRE for semiconductor device simulation.
+This guide will help you get started with nanohub-padre for semiconductor device simulation.
 
 Prerequisites
 -------------
@@ -17,7 +17,7 @@ From PyPI
 
 .. code-block:: bash
 
-   pip install pypadre
+   pip install nanohubpadre
 
 From Source
 ~~~~~~~~~~~
@@ -31,7 +31,7 @@ From Source
 Basic Concepts
 --------------
 
-PyPADRE mirrors the structure of PADRE input decks. A typical simulation consists of:
+nanohub-padre mirrors the structure of PADRE input decks. A typical simulation consists of:
 
 1. **Mesh**: Define the computational grid
 2. **Regions**: Assign materials to mesh areas
@@ -50,7 +50,7 @@ Let's create a simple 1D PN diode:
 
 .. code-block:: python
 
-   from pypadre import (
+   from nanohubpadre import (
        Simulation, Mesh, Region, Electrode, Doping,
        Contact, Models, System, Solve, Log
    )

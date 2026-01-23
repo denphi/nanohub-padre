@@ -6,7 +6,7 @@ Demonstrates how to create and simulate a PN junction diode using
 the create_pn_diode factory function.
 """
 
-from pypadre import create_pn_diode, Solve, Log, Plot1D
+from nanohubpadre import create_pn_diode, Solve, Log, Plot1D
 
 
 def main():

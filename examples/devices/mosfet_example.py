@@ -6,7 +6,7 @@ Demonstrates how to create and simulate an NMOS transistor for
 transfer and output characteristics using the create_mosfet factory function.
 """
 
-from pypadre import create_mosfet, Solve, Log, Plot3D, Load
+from nanohubpadre import create_mosfet, Solve, Log, Plot3D, Load
 
 
 def main():

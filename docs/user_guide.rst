@@ -1,7 +1,7 @@
 User Guide
 ==========
 
-This guide provides detailed information on using PyPADRE components.
+This guide provides detailed information on using nanohub-padre components.
 
 Mesh Definition
 ---------------
@@ -15,7 +15,7 @@ The most common mesh type is rectangular:
 
 .. code-block:: python
 
-   from pypadre import Mesh
+   from nanohubpadre import Mesh
 
    # Create a 2D rectangular mesh
    mesh = Mesh(nx=100, ny=50, outfile="mesh.pg")
@@ -69,7 +69,7 @@ Basic Region Definition
 
 .. code-block:: python
 
-   from pypadre import Region
+   from nanohubpadre import Region
 
    # Silicon semiconductor region by index bounds
    silicon = Region(
@@ -121,7 +121,7 @@ Electrodes define electrical contacts on the device.
 
 .. code-block:: python
 
-   from pypadre import Electrode
+   from nanohubpadre import Electrode
 
    # Source contact (by index)
    source = Electrode(
@@ -154,14 +154,14 @@ Electrodes define electrical contacts on the device.
 Doping Profiles
 ---------------
 
-PyPADRE supports various doping profile types.
+nanohub-padre supports various doping profile types.
 
 Uniform Doping
 ~~~~~~~~~~~~~~
 
 .. code-block:: python
 
-   from pypadre import Doping
+   from nanohubpadre import Doping
 
    # Uniform p-type substrate
    sim.add_doping(Doping(
@@ -239,7 +239,7 @@ Ohmic Contacts
 
 .. code-block:: python
 
-   from pypadre import Contact
+   from nanohubpadre import Contact
 
    # Ohmic contact for all electrodes
    sim.add_contact(Contact(all_contacts=True, neutral=True))
@@ -294,7 +294,7 @@ Customize material properties beyond defaults.
 
 .. code-block:: python
 
-   from pypadre import Material
+   from nanohubpadre import Material
 
    # Silicon with custom lifetimes
    sim.add_material(Material(
@@ -327,7 +327,7 @@ Configure physical models for the simulation.
 
 .. code-block:: python
 
-   from pypadre import Models
+   from nanohubpadre import Models
 
    # Basic drift-diffusion
    sim.models = Models(
@@ -359,7 +359,7 @@ Configure the solver.
 
 .. code-block:: python
 
-   from pypadre import System, Method
+   from nanohubpadre import System, Method
 
    # Two-carrier Newton solver
    sim.system = System(
@@ -393,7 +393,7 @@ Initial Solution
 
 .. code-block:: python
 
-   from pypadre import Solve
+   from nanohubpadre import Solve
 
    # Solve for equilibrium
    sim.add_solve(Solve(initial=True, outfile="equilibrium"))
@@ -450,7 +450,7 @@ Logging and Output
 
 .. code-block:: python
 
-   from pypadre import Log
+   from nanohubpadre import Log
 
    # Log I-V data
    sim.add_log(Log(ivfile="iv_data"))
@@ -466,7 +466,7 @@ Loading Solutions
 
 .. code-block:: python
 
-   from pypadre import Load
+   from nanohubpadre import Load
 
    # Load a previous solution
    sim.add_load(Load(infile="equilibrium"))
@@ -479,7 +479,7 @@ Plotting
 
 .. code-block:: python
 
-   from pypadre import Plot1D
+   from nanohubpadre import Plot1D
 
    # Plot potential along a line
    sim.add_command(Plot1D(
@@ -506,7 +506,7 @@ Plotting
 
 .. code-block:: python
 
-   from pypadre import Plot3D
+   from nanohubpadre import Plot3D
 
    # Save 3D data for visualization
    sim.add_command(Plot3D(
@@ -526,7 +526,7 @@ Complete Workflow Example
 
 .. code-block:: python
 
-   from pypadre import (
+   from nanohubpadre import (
        Simulation, Mesh, Region, Electrode, Doping,
        Contact, Material, Models, System, Method,
        Solve, Log, Load, Plot1D, Plot3D
