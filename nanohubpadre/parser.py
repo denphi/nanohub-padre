@@ -870,17 +870,16 @@ class IVFileParser:
         """
         Parse a single Q-record.
 
-        Q-record format for 4 electrodes:
-        Q0.00000E+00 0.00000E+00   (time values, typically 0)
-        [5 values]  V1, V2, V3, V4, and extra value
-        [5 values]  V5(unused), V6(unused), V7=V3, V8(unused), I1_e, I2_e
-        [5 values]  I3_e, I4_e, I1_h, I2_h, I3_h
-        [5 values]  I4_h, Q1, Q2, Q3, Q4
+        PADRE ivfile format for N electrodes (20 values for 4 electrodes):
+        Line 1 (values 0-4):   V1, V2, V3, V4, V_extra
+        Line 2 (values 5-9):   V_extra, V_swept_copy, V_extra, I1_electron, I2_electron
+        Line 3 (values 10-14): I3_electron, I4_electron, I1_hole, I2_hole, I3_hole
+        Line 4 (values 15-19): I4_hole, Q1, Q2, Q3, Q4
 
-        Actually, after analyzing the file more carefully:
-        - Lines have 5 values each
-        - Total 20 values per Q-record (after the Q line)
-        - Format depends on number of electrodes
+        Based on PADRE 2.4E format analysis:
+        - Indices 0-3: Voltages V1-V4
+        - Indices 8-11: Electron currents I1e-I4e (note: starts at 8, not 4)
+        - Indices 12-15: Hole currents I1h-I4h
         """
         try:
             # Collect all values from the 4 data lines
@@ -901,61 +900,37 @@ class IVFileParser:
             if num_elec == 0:
                 num_elec = 4  # Default assumption
 
-            # Parse based on PADRE log file format
-            # The format stores: voltages, then electron currents, hole currents, charges
-            # For 4 electrodes:
-            # Values 0-4: V1, V2, V3, V4, (extra)
-            # Values 5-9: (extra), (extra), V3_copy, (extra), I1_electron, I2_electron
-            # Actually the exact mapping depends on PADRE version
-
-            # Based on the idvg file provided:
-            # Line 1 (values 0-4): 0, 0, Vg(0.1, 0.2...), 0, 0
-            # Line 2 (values 5-9): 0, Vg, 0, small_number, small_number
-            # Line 3 (values 10-14): 0, very_small, very_small, very_small, small_number
-            # Line 4 (values 15-19): very_small, 0, 0, Vg, 0
-
-            # Looking at the pattern: V3 appears at index 2, 6, and 18
-            # This suggests electrode 3 is being swept
-
-            # Standard PADRE ivfile format for N electrodes:
-            # First N values: voltages V1 through VN
-            # Next N values: electron currents I1_e through IN_e
-            # Next N values: hole currents I1_h through IN_h
-            # Next N values: total currents I1 through IN
-
-            # However, the actual format seems different. Let's use a simpler approach:
-            # Extract voltages from positions that show the sweep pattern
-
             bias_point = {
                 'voltages': {},
                 'currents': {}
             }
 
-            # For the idvg file format observed:
-            # Voltages appear to be at indices 2 (V3), 6 (V3 copy), 18 (V3 again)
-            # and the value at index 2, 6, 18 is the gate voltage being swept
-
-            # General approach: first num_electrodes values are voltages
+            # Voltages are at indices 0 to num_elec-1
             for elec in range(1, num_elec + 1):
                 idx = elec - 1
                 if idx < len(values):
                     bias_point['voltages'][elec] = values[idx]
 
-            # For currents, they appear after the voltage section
-            # Electron currents start at index num_elec
-            # Hole currents at index 2*num_elec
-            # Total currents (or charges) at index 3*num_elec
+            # For PADRE 2.4E format with 4 electrodes:
+            # Electron currents at indices 8, 9, 10, 11 (I1e, I2e, I3e, I4e)
+            # Hole currents at indices 12, 13, 14, 15 (I1h, I2h, I3h, I4h)
+            # These are actually flux/displacement values, but we treat as currents
+
+            # Calculate electron current base index
+            # Pattern: after voltages and some metadata, currents start
+            e_base = 8  # Based on observed PADRE 2.4E format
+            h_base = 12
 
             for elec in range(1, num_elec + 1):
                 elec_currents = {}
 
                 # Electron current
-                e_idx = num_elec + (elec - 1)
+                e_idx = e_base + (elec - 1)
                 if e_idx < len(values):
                     elec_currents['electron'] = values[e_idx]
 
                 # Hole current
-                h_idx = 2 * num_elec + (elec - 1)
+                h_idx = h_base + (elec - 1)
                 if h_idx < len(values):
                     elec_currents['hole'] = values[h_idx]
 
