@@ -67,6 +67,14 @@ from .visualization import (
     get_available_backends,
 )
 
+# Solution file parser and visualization
+from .solution import (
+    parse_solution_file,
+    load_solution_series,
+    SolutionData,
+    MeshData,
+)
+
 __version__ = "0.0.1"
 __all__ = [
     "Simulation",
@@ -123,4 +131,9 @@ __all__ = [
     "plot_output_characteristic",
     "plot_diode_iv",
     "get_available_backends",
+    # Solution file parser
+    "parse_solution_file",
+    "load_solution_series",
+    "SolutionData",
+    "MeshData",
 ]

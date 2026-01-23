@@ -26,6 +26,7 @@ from .plotting import Plot1D, Plot2D, Contour, Vector
 from .options import Options, Load
 from .plot3d import Plot3D
 from .parser import parse_padre_output, SimulationResult, parse_iv_file, IVData
+from .solution import parse_solution_file, load_solution_series, SolutionData
 
 
 class End(PadreCommand):
@@ -889,6 +890,101 @@ class Simulation:
             **kwargs
         )
 
+    # -----------------------------------------------------------------------
+    # Solution file methods
+    # -----------------------------------------------------------------------
+
+    def load_solution(self, filename: str) -> SolutionData:
+        """
+        Load a PADRE solution file.
+
+        Parameters
+        ----------
+        filename : str
+            Solution filename (relative to working_dir or absolute)
+
+        Returns
+        -------
+        SolutionData
+            Parsed solution with visualization methods
+
+        Example
+        -------
+        >>> result = sim.run()
+        >>> sol = sim.load_solution("pn_eq")
+        >>> sol.plot_2d("potential")
+        >>> sol.plot_band_diagram()
+        """
+        if not os.path.isabs(filename):
+            filename = os.path.join(self.working_dir, filename)
+        return parse_solution_file(filename)
+
+    def load_solutions(self, pattern: str = "*") -> list:
+        """
+        Load multiple solution files matching a pattern.
+
+        Parameters
+        ----------
+        pattern : str
+            Glob pattern to match files (e.g., "pn_fwd_*")
+
+        Returns
+        -------
+        List[SolutionData]
+            List of parsed solutions in sorted order
+
+        Example
+        -------
+        >>> result = sim.run()
+        >>> solutions = sim.load_solutions("pn_fwd_*")
+        >>> for sol in solutions:
+        ...     print(sol.filename)
+        """
+        return load_solution_series(self.working_dir, pattern)
+
+    def plot_solution(
+        self,
+        filename: str,
+        variable: str = 'potential',
+        plot_type: str = '2d',
+        **kwargs
+    ):
+        """
+        Plot a solution file.
+
+        Parameters
+        ----------
+        filename : str
+            Solution filename
+        variable : str
+            Variable to plot: 'potential', 'electron', 'hole', 'doping'
+        plot_type : str
+            '2d' for contour plot, 'line' for 1D cut, 'band' for band diagram
+        **kwargs
+            Additional arguments passed to the plot method
+
+        Returns
+        -------
+        Any
+            Plot object
+
+        Example
+        -------
+        >>> sim.plot_solution("pn_eq", variable="potential", plot_type="2d")
+        >>> sim.plot_solution("pn_eq", variable="electron", plot_type="line", log_scale=True)
+        >>> sim.plot_solution("pn_fwd_a", plot_type="band")
+        """
+        sol = self.load_solution(filename)
+
+        if plot_type == '2d':
+            return sol.plot_2d(variable, **kwargs)
+        elif plot_type == 'line':
+            return sol.plot_line(variable, **kwargs)
+        elif plot_type == 'band':
+            return sol.plot_band_diagram(**kwargs)
+        else:
+            raise ValueError(f"Unknown plot_type: {plot_type}. Use '2d', 'line', or 'band'.")
+
     def __repr__(self) -> str:
         parts = []
         if self.title:
@@ -896,7 +992,7 @@ class Simulation:
         parts.append(f"regions={len(self._regions)}")
         parts.append(f"electrodes={len(self._electrodes)}")
         parts.append(f"dopings={len(self._dopings)}")
-        parts.append(f"solves={len(self._solves)}")
+        parts.append(f"commands={len(self._commands)}")
         return f"<Simulation {', '.join(parts)}>"
 
 
