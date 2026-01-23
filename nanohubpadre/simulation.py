@@ -675,7 +675,8 @@ class Simulation:
 
     def plot_iv(
         self,
-        electrode: int,
+        current_electrode: int,
+        voltage_electrode: Optional[int] = None,
         filename: Optional[str] = None,
         title: Optional[str] = None,
         log_scale: bool = False,
@@ -688,8 +689,11 @@ class Simulation:
 
         Parameters
         ----------
-        electrode : int
-            Electrode number
+        current_electrode : int
+            Electrode number for current (y-axis)
+        voltage_electrode : int, optional
+            Electrode number for voltage (x-axis). If None, auto-detects
+            the swept electrode (electrode with largest voltage variation).
         filename : str, optional
             Log file name. If None, infers from simulation Log commands.
         title : str, optional
@@ -713,11 +717,15 @@ class Simulation:
         >>> sim.add_log(Log(ivfile="idvg"))
         >>> sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
         >>> result = sim.run()
-        >>> sim.plot_iv(electrode=2)
+        >>> # Plot drain current vs swept voltage (auto-detected)
+        >>> sim.plot_iv(current_electrode=2)
+        >>> # Explicitly specify gate voltage on x-axis
+        >>> sim.plot_iv(current_electrode=2, voltage_electrode=3)
         """
         iv_data = self.get_iv_data(filename=filename)
         return iv_data.plot(
-            electrode,
+            current_electrode,
+            voltage_electrode=voltage_electrode,
             title=title,
             log_scale=log_scale,
             backend=backend,

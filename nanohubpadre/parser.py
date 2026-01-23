@@ -541,9 +541,32 @@ class IVData:
     # Plotting methods
     # -----------------------------------------------------------------------
 
+    def _find_swept_electrode(self) -> int:
+        """
+        Find the electrode with the largest voltage variation (the swept electrode).
+
+        Returns
+        -------
+        int
+            Electrode number of the swept electrode
+        """
+        max_range = 0.0
+        swept_electrode = 1
+
+        for elec in range(1, self.num_electrodes + 1):
+            voltages = self.get_voltages(elec)
+            if voltages:
+                v_range = max(voltages) - min(voltages)
+                if v_range > max_range:
+                    max_range = v_range
+                    swept_electrode = elec
+
+        return swept_electrode
+
     def plot(
         self,
-        electrode: int,
+        current_electrode: int,
+        voltage_electrode: Optional[int] = None,
         title: Optional[str] = None,
         log_scale: bool = False,
         backend: Optional[str] = None,
@@ -555,8 +578,11 @@ class IVData:
 
         Parameters
         ----------
-        electrode : int
-            Electrode number
+        current_electrode : int
+            Electrode number for current (y-axis)
+        voltage_electrode : int, optional
+            Electrode number for voltage (x-axis). If None, auto-detects
+            the swept electrode (electrode with largest voltage variation).
         title : str, optional
             Plot title
         log_scale : bool
@@ -576,11 +602,27 @@ class IVData:
         Example
         -------
         >>> iv_data = sim.get_iv_data()
-        >>> iv_data.plot(electrode=2, log_scale=True)
+        >>> # Plot drain current vs gate voltage (auto-detect gate as swept)
+        >>> iv_data.plot(current_electrode=2)
+        >>> # Explicitly specify both electrodes
+        >>> iv_data.plot(current_electrode=2, voltage_electrode=3)
         """
         from .visualization import plot_iv
-        voltages, currents = self.get_iv_data(electrode)
-        title = title or f"I-V Characteristic - Electrode {electrode}"
+
+        # Get current data
+        currents = self.get_currents(current_electrode, 'total')
+
+        # Determine voltage electrode (use swept electrode if not specified)
+        if voltage_electrode is None:
+            voltage_electrode = self._find_swept_electrode()
+
+        voltages = self.get_voltages(voltage_electrode)
+
+        if voltage_electrode == current_electrode:
+            title = title or f"I-V Characteristic - Electrode {current_electrode}"
+        else:
+            title = title or f"I{current_electrode} vs V{voltage_electrode}"
+
         return plot_iv(
             voltages, currents,
             title=title,
