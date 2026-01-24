@@ -547,6 +547,7 @@ class SolutionData:
         self,
         direction: str = 'y',
         position: Optional[float] = None,
+        use_1d_profile: bool = True,
         title: Optional[str] = None,
         backend: Optional[str] = None,
         show: bool = True,
@@ -558,9 +559,12 @@ class SolutionData:
         Parameters
         ----------
         direction : str
-            Direction of cut: 'x' or 'y'
+            Direction of cut: 'x' or 'y' (ignored if use_1d_profile=True)
         position : float, optional
-            Position of the cut in microns
+            Position of the cut in microns (ignored if use_1d_profile=True)
+        use_1d_profile : bool
+            If True (default), uses get_1d_profile for physically-ordered data.
+            Set to False for raw data extraction.
         title : str, optional
             Plot title
         backend : str, optional
@@ -573,15 +577,23 @@ class SolutionData:
         Any
             Plot object
         """
-        coords, psi = self.get_line_cut('potential', direction, position)
+        if use_1d_profile:
+            coords, psi = self.get_1d_profile('potential')
+            direction = 'y'
+        else:
+            coords, psi = self.get_line_cut('potential', direction, position)
 
         # Calculate band edges (simplified - assumes Si at 300K)
+        # Energy convention: E = -q*psi where psi is electrostatic potential
         Eg = 1.12  # Silicon bandgap (eV)
         chi = 4.05  # Electron affinity (eV)
 
-        Ec = -psi - chi  # Conduction band
-        Ev = Ec - Eg     # Valence band
-        Ef = -chi - Eg/2  # Fermi level (approx intrinsic)
+        # For band diagram: Ec = -q*psi + const, Ev = Ec - Eg
+        # Reference: vacuum level at E=0, so Ec = -chi - psi
+        Ec = -chi - psi  # Conduction band edge
+        Ev = Ec - Eg     # Valence band edge
+        # Intrinsic Fermi level is at mid-gap
+        Ei = (Ec + Ev) / 2  # Intrinsic Fermi level (varies with position)
 
         if title is None:
             title = f"Energy Band Diagram - {direction.upper()} cut"
@@ -591,15 +603,15 @@ class SolutionData:
 
         if backend == 'matplotlib':
             return self._plot_bands_matplotlib(
-                coords, Ec, Ev, Ef, direction, title, show, **kwargs
+                coords, Ec, Ev, Ei, direction, title, show, **kwargs
             )
         else:
             return self._plot_bands_plotly(
-                coords, Ec, Ev, Ef, direction, title, show, **kwargs
+                coords, Ec, Ev, Ei, direction, title, show, **kwargs
             )
 
     def _plot_bands_matplotlib(
-        self, coords, Ec, Ev, Ef, direction, title, show, **kwargs
+        self, coords, Ec, Ev, Ei, direction, title, show, **kwargs
     ) -> Any:
         """Plot band diagram using matplotlib."""
         import matplotlib.pyplot as plt
@@ -608,9 +620,9 @@ class SolutionData:
 
         ax.plot(coords, Ec, 'b-', linewidth=2, label='Ec')
         ax.plot(coords, Ev, 'r-', linewidth=2, label='Ev')
-        ax.axhline(y=Ef, color='g', linestyle='--', linewidth=1, label='Ef (intrinsic)')
+        ax.plot(coords, Ei, 'g--', linewidth=1, label='Ei')
 
-        xlabel = 'Y (μm)' if direction == 'y' else 'X (μm)'
+        xlabel = 'Depth (μm)' if direction == 'y' else 'Position (μm)'
         ax.set_xlabel(xlabel)
         ax.set_ylabel('Energy (eV)')
         ax.set_title(title)
@@ -623,7 +635,7 @@ class SolutionData:
         return ax
 
     def _plot_bands_plotly(
-        self, coords, Ec, Ev, Ef, direction, title, show, **kwargs
+        self, coords, Ec, Ev, Ei, direction, title, show, **kwargs
     ) -> Any:
         """Plot band diagram using plotly."""
         import plotly.graph_objects as go
@@ -634,10 +646,10 @@ class SolutionData:
                                   name='Ec', line=dict(color='blue', width=2)))
         fig.add_trace(go.Scatter(x=coords, y=Ev, mode='lines',
                                   name='Ev', line=dict(color='red', width=2)))
-        fig.add_hline(y=Ef, line_dash='dash', line_color='green',
-                      annotation_text='Ef (intrinsic)')
+        fig.add_trace(go.Scatter(x=coords, y=Ei, mode='lines',
+                                  name='Ei', line=dict(color='green', width=1, dash='dash')))
 
-        xlabel = 'Y (μm)' if direction == 'y' else 'X (μm)'
+        xlabel = 'Depth (μm)' if direction == 'y' else 'Position (μm)'
 
         fig.update_layout(
             title=title,
