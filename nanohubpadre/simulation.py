@@ -1106,6 +1106,254 @@ class Simulation:
             raise ValueError(f"Unknown plot_type: {plot_type}. Use '2d', 'line', or 'band'.")
 
     # -----------------------------------------------------------------------
+    # High-level plotting (uses OutputManager or SolutionData)
+    # -----------------------------------------------------------------------
+
+    def plot_band_diagram(
+        self,
+        suffix: str = "",
+        solution_file: Optional[str] = None,
+        **kwargs
+    ):
+        """
+        Plot energy band diagram.
+
+        Automatically chooses the best data source:
+        - If Plot1D outputs (band_val, band_con) exist, uses those
+        - Otherwise, computes from a solution file
+
+        Parameters
+        ----------
+        suffix : str
+            Suffix to match Plot1D output names (e.g., "eq" for "vbeq", "cbeq")
+        solution_file : str, optional
+            Solution file to use. If provided, computes bands from potential.
+        **kwargs
+            Additional arguments (backend, show, title, etc.)
+
+        Returns
+        -------
+        Any
+            Plot object
+
+        Example
+        -------
+        >>> # From Plot1D outputs
+        >>> sim.plot_band_diagram()
+        >>> sim.plot_band_diagram(suffix="fwd")
+        >>>
+        >>> # From solution file
+        >>> sim.plot_band_diagram(solution_file="pn_eq")
+        """
+        # If solution file specified, use that
+        if solution_file:
+            sol = self.load_solution(solution_file)
+            return sol.plot_band_diagram(**kwargs)
+
+        # Try OutputManager first (Plot1D outputs)
+        try:
+            return self.outputs.plot_band_diagram(suffix=suffix, **kwargs)
+        except ValueError:
+            pass
+
+        # Fallback: try to find a solution file
+        solution_outputs = self.outputs.list(OutputType.SOLUTION)
+        if solution_outputs:
+            sol = self.load_solution(solution_outputs[0])
+            return sol.plot_band_diagram(**kwargs)
+
+        raise ValueError(
+            "No band diagram data available. "
+            "Either add Plot1D commands for band_val/band_con, "
+            "or specify a solution_file."
+        )
+
+    def plot_carriers(
+        self,
+        suffix: str = "",
+        solution_file: Optional[str] = None,
+        log_scale: bool = True,
+        **kwargs
+    ):
+        """
+        Plot carrier concentration profiles (electrons and holes).
+
+        Parameters
+        ----------
+        suffix : str
+            Suffix to match Plot1D output names
+        solution_file : str, optional
+            Solution file to use
+        log_scale : bool
+            Use logarithmic y-axis (default True)
+        **kwargs
+            Additional arguments
+
+        Returns
+        -------
+        Any
+            Plot object
+        """
+        # If solution file specified, use that
+        if solution_file:
+            sol = self.load_solution(solution_file)
+            # Plot both on same axes
+            backend = kwargs.get('backend')
+            show = kwargs.get('show', True)
+            title = kwargs.get('title', 'Carrier Concentration')
+
+            if backend is None:
+                try:
+                    import matplotlib.pyplot as plt
+                    backend = 'matplotlib'
+                except ImportError:
+                    backend = 'plotly'
+
+            if backend == 'matplotlib':
+                import matplotlib.pyplot as plt
+                fig, ax = plt.subplots(figsize=kwargs.get('figsize', (8, 5)))
+                y, n = sol.get_1d_profile('electron')
+                ax.plot(y, n, 'b-', linewidth=2, label='Electrons')
+                y, p = sol.get_1d_profile('hole')
+                ax.plot(y, p, 'r-', linewidth=2, label='Holes')
+                ax.set_xlabel('Depth (μm)')
+                ax.set_ylabel('Concentration (/cm³)')
+                ax.set_title(title)
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+                if log_scale:
+                    ax.set_yscale('log')
+                if show:
+                    plt.show()
+                return ax
+            else:
+                import plotly.graph_objects as go
+                fig = go.Figure()
+                y, n = sol.get_1d_profile('electron')
+                fig.add_trace(go.Scatter(x=y, y=n, mode='lines',
+                                          name='Electrons', line=dict(color='blue', width=2)))
+                y, p = sol.get_1d_profile('hole')
+                fig.add_trace(go.Scatter(x=y, y=p, mode='lines',
+                                          name='Holes', line=dict(color='red', width=2)))
+                fig.update_layout(
+                    title=title,
+                    xaxis_title='Depth (μm)',
+                    yaxis_title='Concentration (/cm³)',
+                    yaxis_type='log' if log_scale else 'linear',
+                    template='plotly_white'
+                )
+                if show:
+                    fig.show()
+                return fig
+
+        # Try OutputManager first (Plot1D outputs)
+        try:
+            return self.outputs.plot_carriers(suffix=suffix, log_scale=log_scale, **kwargs)
+        except ValueError:
+            pass
+
+        # Fallback: try to find a solution file
+        solution_outputs = self.outputs.list(OutputType.SOLUTION)
+        if solution_outputs:
+            return self.plot_carriers(solution_file=solution_outputs[0],
+                                       log_scale=log_scale, **kwargs)
+
+        raise ValueError(
+            "No carrier data available. "
+            "Either add Plot1D commands for electrons/holes, "
+            "or specify a solution_file."
+        )
+
+    def plot_currents(self, suffix: str = "", **kwargs):
+        """
+        Plot current density profiles.
+
+        Parameters
+        ----------
+        suffix : str
+            Suffix to match Plot1D output names
+        **kwargs
+            Additional arguments
+
+        Returns
+        -------
+        Any
+            Plot object
+        """
+        return self.outputs.plot_currents(suffix=suffix, **kwargs)
+
+    def plot_variable(
+        self,
+        variable: str,
+        suffix: str = "",
+        solution_file: Optional[str] = None,
+        **kwargs
+    ):
+        """
+        Plot a single variable.
+
+        Parameters
+        ----------
+        variable : str
+            Variable to plot: 'potential', 'electrons', 'holes', 'doping',
+            'band_val', 'band_con', 'qfn', 'qfp', 'e_field', etc.
+        suffix : str
+            Suffix to match Plot1D output names
+        solution_file : str, optional
+            Solution file to use
+        **kwargs
+            Additional arguments
+
+        Returns
+        -------
+        Any
+            Plot object
+        """
+        # Try OutputManager first
+        data_list = self.outputs.get_by_variable(variable)
+        if data_list:
+            # Filter by suffix if provided
+            for data in data_list:
+                if not suffix or suffix in data.name:
+                    return data.plot(**kwargs)
+
+        # Try solution file
+        if solution_file:
+            sol = self.load_solution(solution_file)
+            # Map variable names
+            sol_var_map = {
+                'potential': 'potential',
+                'electrons': 'electron',
+                'holes': 'hole',
+                'electron': 'electron',
+                'hole': 'hole',
+                'doping': 'doping',
+            }
+            sol_var = sol_var_map.get(variable, variable)
+            return sol.plot_line(sol_var, **kwargs)
+
+        # Try to find a solution file automatically
+        solution_outputs = self.outputs.list(OutputType.SOLUTION)
+        if solution_outputs and variable in ['potential', 'electrons', 'holes', 'electron', 'hole', 'doping']:
+            sol = self.load_solution(solution_outputs[0])
+            sol_var_map = {
+                'potential': 'potential',
+                'electrons': 'electron',
+                'holes': 'hole',
+                'electron': 'electron',
+                'hole': 'hole',
+                'doping': 'doping',
+            }
+            sol_var = sol_var_map.get(variable, variable)
+            return sol.plot_line(sol_var, **kwargs)
+
+        raise ValueError(
+            f"No data available for variable '{variable}'. "
+            "Check that the simulation has the appropriate Plot1D commands "
+            "or specify a solution_file."
+        )
+
+    # -----------------------------------------------------------------------
     # Output management
     # -----------------------------------------------------------------------
 

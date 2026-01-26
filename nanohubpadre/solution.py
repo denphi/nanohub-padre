@@ -101,6 +101,30 @@ class SolutionData:
     bias_voltages: Dict[int, float] = field(default_factory=dict)
     filename: str = ""
 
+    @property
+    def is_valid(self) -> bool:
+        """Check if the solution contains valid data."""
+        return (
+            len(self.potential) > 0 and
+            len(self.electron_conc) > 0 and
+            self.mesh.nx > 0 and
+            self.mesh.ny > 0
+        )
+
+    def summary(self) -> str:
+        """Get a summary of the solution data."""
+        lines = [f"Solution: {self.filename}"]
+        lines.append(f"  Mesh: {self.mesh.nx} x {self.mesh.ny} = {self.mesh.num_nodes} nodes")
+        lines.append(f"  Potential: {len(self.potential)} values")
+        lines.append(f"  Electrons: {len(self.electron_conc)} values")
+        lines.append(f"  Holes: {len(self.hole_conc)} values")
+        if self.is_valid:
+            lines.append(f"  Potential range: {self.potential.min():.4f} to {self.potential.max():.4f} V")
+            lines.append(f"  Electron range: {self.electron_conc.min():.2e} to {self.electron_conc.max():.2e} /cm³")
+        else:
+            lines.append("  WARNING: Solution data appears incomplete or invalid")
+        return "\n".join(lines)
+
     def get_2d_data(self, variable: str) -> np.ndarray:
         """
         Get a variable reshaped as 2D array matching the mesh.
@@ -132,6 +156,22 @@ class SolutionData:
         data = var_map[variable]
         if len(data) == 0:
             raise ValueError(f"No data for variable: {variable}")
+
+        # Verify mesh dimensions are set
+        if self.mesh.nx == 0 or self.mesh.ny == 0:
+            raise ValueError(
+                f"Mesh dimensions not set (nx={self.mesh.nx}, ny={self.mesh.ny}). "
+                "The solution file may not have been parsed correctly."
+            )
+
+        # Verify data length matches mesh
+        expected_nodes = self.mesh.nx * self.mesh.ny
+        if len(data) != expected_nodes:
+            raise ValueError(
+                f"Data length ({len(data)}) doesn't match mesh "
+                f"({self.mesh.nx}x{self.mesh.ny}={expected_nodes} nodes). "
+                "The solution file may be corrupted or incomplete."
+            )
 
         return data.reshape(self.mesh.ny, self.mesh.nx)
 
@@ -458,8 +498,18 @@ class SolutionData:
         if use_1d_profile and variable in ['potential', 'electron', 'hole']:
             coords, values = self.get_1d_profile(variable)
             direction = 'y'  # 1D profile is always along Y
+            # Fallback to line cut if 1d profile is empty
+            if len(coords) == 0 or len(values) == 0:
+                coords, values = self.get_line_cut(variable, direction, position)
         else:
             coords, values = self.get_line_cut(variable, direction, position)
+
+        # Check if we have valid data
+        if len(coords) == 0 or len(values) == 0:
+            raise ValueError(
+                f"No {variable} data available for plotting. "
+                "Ensure the solution file was parsed correctly."
+            )
 
         labels = {
             'potential': ('Electrostatic Potential', 'V'),
@@ -580,8 +630,18 @@ class SolutionData:
         if use_1d_profile:
             coords, psi = self.get_1d_profile('potential')
             direction = 'y'
+            # Fallback to line cut if 1d profile is empty
+            if len(coords) == 0 or len(psi) == 0:
+                coords, psi = self.get_line_cut('potential', direction, position)
         else:
             coords, psi = self.get_line_cut('potential', direction, position)
+
+        # Check if we have valid data
+        if len(coords) == 0 or len(psi) == 0:
+            raise ValueError(
+                "No potential data available for band diagram. "
+                "Ensure the solution file was parsed correctly."
+            )
 
         # Calculate band edges (simplified - assumes Si at 300K)
         # Energy convention: E = -q*psi where psi is electrostatic potential
