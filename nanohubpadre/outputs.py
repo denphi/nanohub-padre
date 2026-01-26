@@ -21,6 +21,16 @@ class OutputType(Enum):
     PLOT_2D = "plot_2d"
 
 
+# Variable groups for composite visualizations
+VARIABLE_GROUPS = {
+    'band_diagram': ['band_val', 'band_con', 'qfn', 'qfp'],
+    'carriers': ['electrons', 'holes'],
+    'currents': ['j_electr', 'j_hole', 'j_total'],
+    'quasi_fermi': ['qfn', 'qfp'],
+    'bands': ['band_val', 'band_con'],
+}
+
+
 @dataclass
 class PlotData:
     """
@@ -422,6 +432,475 @@ class OutputManager:
         except Exception:
             return None
 
+    # -----------------------------------------------------------------------
+    # Composite plot methods
+    # -----------------------------------------------------------------------
+
+    def get_group(self, group_name: str) -> Dict[str, PlotData]:
+        """
+        Get all outputs belonging to a variable group.
+
+        Parameters
+        ----------
+        group_name : str
+            Group name: 'band_diagram', 'carriers', 'currents', 'quasi_fermi', 'bands'
+
+        Returns
+        -------
+        Dict[str, PlotData]
+            Dictionary mapping variable names to PlotData objects
+        """
+        if group_name not in VARIABLE_GROUPS:
+            raise ValueError(f"Unknown group: {group_name}. "
+                           f"Available: {list(VARIABLE_GROUPS.keys())}")
+
+        result = {}
+        for var in VARIABLE_GROUPS[group_name]:
+            data_list = self.get_by_variable(var)
+            if data_list:
+                # Take the first (or most recent) output for this variable
+                result[var] = data_list[-1]
+        return result
+
+    def plot_band_diagram(self, suffix: str = "", title: Optional[str] = None,
+                          backend: Optional[str] = None, show: bool = True,
+                          **kwargs) -> Any:
+        """
+        Plot energy band diagram combining band_val and band_con outputs.
+
+        Parameters
+        ----------
+        suffix : str
+            Suffix to match output names (e.g., "iv" to match "vbiv", "cbiv")
+        title : str, optional
+            Plot title
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        **kwargs
+            Additional plot arguments
+
+        Returns
+        -------
+        Any
+            Plot object
+
+        Example
+        -------
+        >>> # After running simulation with Plot1D(band_val=True, outfile="vband")
+        >>> # and Plot1D(band_con=True, outfile="cband")
+        >>> sim.outputs.plot_band_diagram()
+        >>>
+        >>> # For plots with suffix (e.g., "vbiv", "cbiv")
+        >>> sim.outputs.plot_band_diagram(suffix="iv")
+        """
+        # Find band_val and band_con outputs
+        vband_data = None
+        cband_data = None
+        qfn_data = None
+        qfp_data = None
+
+        for name, entry in self._entries.items():
+            if entry.data is None:
+                continue
+            if suffix and not name.endswith(suffix) and suffix not in name:
+                continue
+
+            if entry.variable == 'band_val':
+                vband_data = entry.data
+            elif entry.variable == 'band_con':
+                cband_data = entry.data
+            elif entry.variable == 'qfn':
+                qfn_data = entry.data
+            elif entry.variable == 'qfp':
+                qfp_data = entry.data
+
+        if vband_data is None and cband_data is None:
+            raise ValueError("No band data found. Need outputs with band_val or band_con.")
+
+        if backend is None:
+            backend = _get_default_backend()
+
+        if title is None:
+            title = "Energy Band Diagram"
+            if suffix:
+                title += f" ({suffix})"
+
+        if backend == 'matplotlib':
+            return self._plot_bands_matplotlib(
+                vband_data, cband_data, qfn_data, qfp_data, title, show, **kwargs
+            )
+        else:
+            return self._plot_bands_plotly(
+                vband_data, cband_data, qfn_data, qfp_data, title, show, **kwargs
+            )
+
+    def _plot_bands_matplotlib(self, vband, cband, qfn, qfp, title, show, **kwargs):
+        """Plot band diagram using matplotlib."""
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(figsize=kwargs.get('figsize', (8, 5)))
+
+        if cband is not None:
+            ax.plot(cband.x, cband.y, 'b-', linewidth=2, label='Ec')
+        if vband is not None:
+            ax.plot(vband.x, vband.y, 'r-', linewidth=2, label='Ev')
+        if qfn is not None:
+            ax.plot(qfn.x, qfn.y, 'b--', linewidth=1, label='Efn')
+        if qfp is not None:
+            ax.plot(qfp.x, qfp.y, 'r--', linewidth=1, label='Efp')
+
+        ax.set_xlabel('Position (μm)')
+        ax.set_ylabel('Energy (eV)')
+        ax.set_title(title)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        if show:
+            plt.show()
+
+        return ax
+
+    def _plot_bands_plotly(self, vband, cband, qfn, qfp, title, show, **kwargs):
+        """Plot band diagram using plotly."""
+        import plotly.graph_objects as go
+
+        fig = go.Figure()
+
+        if cband is not None:
+            fig.add_trace(go.Scatter(x=cband.x, y=cband.y, mode='lines',
+                                      name='Ec', line=dict(color='blue', width=2)))
+        if vband is not None:
+            fig.add_trace(go.Scatter(x=vband.x, y=vband.y, mode='lines',
+                                      name='Ev', line=dict(color='red', width=2)))
+        if qfn is not None:
+            fig.add_trace(go.Scatter(x=qfn.x, y=qfn.y, mode='lines',
+                                      name='Efn', line=dict(color='blue', width=1, dash='dash')))
+        if qfp is not None:
+            fig.add_trace(go.Scatter(x=qfp.x, y=qfp.y, mode='lines',
+                                      name='Efp', line=dict(color='red', width=1, dash='dash')))
+
+        fig.update_layout(
+            title=title,
+            xaxis_title='Position (μm)',
+            yaxis_title='Energy (eV)',
+            width=kwargs.get('width', 700),
+            height=kwargs.get('height', 500),
+            template='plotly_white'
+        )
+
+        if show:
+            fig.show()
+
+        return fig
+
+    def plot_carriers(self, suffix: str = "", title: Optional[str] = None,
+                      log_scale: bool = True, backend: Optional[str] = None,
+                      show: bool = True, **kwargs) -> Any:
+        """
+        Plot electron and hole concentration profiles.
+
+        Parameters
+        ----------
+        suffix : str
+            Suffix to match output names
+        title : str, optional
+            Plot title
+        log_scale : bool
+            Use logarithmic y-axis (default True)
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+
+        Returns
+        -------
+        Any
+            Plot object
+        """
+        ele_data = None
+        hole_data = None
+
+        for name, entry in self._entries.items():
+            if entry.data is None:
+                continue
+            if suffix and not name.endswith(suffix) and suffix not in name:
+                continue
+
+            if entry.variable == 'electrons':
+                ele_data = entry.data
+            elif entry.variable == 'holes':
+                hole_data = entry.data
+
+        if ele_data is None and hole_data is None:
+            raise ValueError("No carrier data found. Need outputs with electrons or holes.")
+
+        if backend is None:
+            backend = _get_default_backend()
+
+        if title is None:
+            title = "Carrier Concentration"
+            if suffix:
+                title += f" ({suffix})"
+
+        if backend == 'matplotlib':
+            return self._plot_carriers_matplotlib(
+                ele_data, hole_data, title, log_scale, show, **kwargs
+            )
+        else:
+            return self._plot_carriers_plotly(
+                ele_data, hole_data, title, log_scale, show, **kwargs
+            )
+
+    def _plot_carriers_matplotlib(self, ele, hole, title, log_scale, show, **kwargs):
+        """Plot carrier profiles using matplotlib."""
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(figsize=kwargs.get('figsize', (8, 5)))
+
+        if ele is not None:
+            ax.plot(ele.x, ele.y, 'b-', linewidth=2, label='Electrons')
+        if hole is not None:
+            ax.plot(hole.x, hole.y, 'r-', linewidth=2, label='Holes')
+
+        ax.set_xlabel('Position (μm)')
+        ax.set_ylabel('Concentration (/cm³)')
+        ax.set_title(title)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        if log_scale:
+            ax.set_yscale('log')
+
+        if show:
+            plt.show()
+
+        return ax
+
+    def _plot_carriers_plotly(self, ele, hole, title, log_scale, show, **kwargs):
+        """Plot carrier profiles using plotly."""
+        import plotly.graph_objects as go
+
+        fig = go.Figure()
+
+        if ele is not None:
+            fig.add_trace(go.Scatter(x=ele.x, y=ele.y, mode='lines',
+                                      name='Electrons', line=dict(color='blue', width=2)))
+        if hole is not None:
+            fig.add_trace(go.Scatter(x=hole.x, y=hole.y, mode='lines',
+                                      name='Holes', line=dict(color='red', width=2)))
+
+        yaxis_type = 'log' if log_scale else 'linear'
+
+        fig.update_layout(
+            title=title,
+            xaxis_title='Position (μm)',
+            yaxis_title='Concentration (/cm³)',
+            yaxis_type=yaxis_type,
+            width=kwargs.get('width', 700),
+            height=kwargs.get('height', 500),
+            template='plotly_white'
+        )
+
+        if show:
+            fig.show()
+
+        return fig
+
+    def plot_currents(self, suffix: str = "", title: Optional[str] = None,
+                      backend: Optional[str] = None, show: bool = True,
+                      **kwargs) -> Any:
+        """
+        Plot current density profiles (electron, hole, total).
+
+        Parameters
+        ----------
+        suffix : str
+            Suffix to match output names
+        title : str, optional
+            Plot title
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+
+        Returns
+        -------
+        Any
+            Plot object
+        """
+        j_ele = None
+        j_hole = None
+        j_total = None
+
+        for name, entry in self._entries.items():
+            if entry.data is None:
+                continue
+            if suffix and not name.endswith(suffix) and suffix not in name:
+                continue
+
+            if entry.variable == 'j_electr':
+                j_ele = entry.data
+            elif entry.variable == 'j_hole':
+                j_hole = entry.data
+            elif entry.variable == 'j_total':
+                j_total = entry.data
+
+        if j_ele is None and j_hole is None and j_total is None:
+            raise ValueError("No current data found.")
+
+        if backend is None:
+            backend = _get_default_backend()
+
+        if title is None:
+            title = "Current Density"
+            if suffix:
+                title += f" ({suffix})"
+
+        if backend == 'matplotlib':
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=kwargs.get('figsize', (8, 5)))
+
+            if j_ele is not None:
+                ax.plot(j_ele.x, j_ele.y, 'b-', linewidth=2, label='Jn')
+            if j_hole is not None:
+                ax.plot(j_hole.x, j_hole.y, 'r-', linewidth=2, label='Jp')
+            if j_total is not None:
+                ax.plot(j_total.x, j_total.y, 'k-', linewidth=2, label='Jtotal')
+
+            ax.set_xlabel('Position (μm)')
+            ax.set_ylabel('Current Density (A/cm²)')
+            ax.set_title(title)
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+            if show:
+                plt.show()
+            return ax
+        else:
+            import plotly.graph_objects as go
+            fig = go.Figure()
+
+            if j_ele is not None:
+                fig.add_trace(go.Scatter(x=j_ele.x, y=j_ele.y, mode='lines',
+                                          name='Jn', line=dict(color='blue', width=2)))
+            if j_hole is not None:
+                fig.add_trace(go.Scatter(x=j_hole.x, y=j_hole.y, mode='lines',
+                                          name='Jp', line=dict(color='red', width=2)))
+            if j_total is not None:
+                fig.add_trace(go.Scatter(x=j_total.x, y=j_total.y, mode='lines',
+                                          name='Jtotal', line=dict(color='black', width=2)))
+
+            fig.update_layout(
+                title=title,
+                xaxis_title='Position (μm)',
+                yaxis_title='Current Density (A/cm²)',
+                width=kwargs.get('width', 700),
+                height=kwargs.get('height', 500),
+                template='plotly_white'
+            )
+
+            if show:
+                fig.show()
+            return fig
+
+    def plot_multiple(self, variables: List[str], suffix: str = "",
+                      title: Optional[str] = None, log_scale: bool = False,
+                      backend: Optional[str] = None, show: bool = True,
+                      **kwargs) -> Any:
+        """
+        Plot multiple variables on the same axes.
+
+        Parameters
+        ----------
+        variables : List[str]
+            List of variable names to plot
+        suffix : str
+            Suffix to match output names
+        title : str, optional
+            Plot title
+        log_scale : bool
+            Use logarithmic y-axis
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+
+        Returns
+        -------
+        Any
+            Plot object
+
+        Example
+        -------
+        >>> sim.outputs.plot_multiple(['potential', 'e_field'])
+        >>> sim.outputs.plot_multiple(['electrons', 'holes', 'doping'], log_scale=True)
+        """
+        data_dict = {}
+        for var in variables:
+            for name, entry in self._entries.items():
+                if entry.data is None:
+                    continue
+                if suffix and not name.endswith(suffix) and suffix not in name:
+                    continue
+                if entry.variable == var:
+                    data_dict[var] = entry.data
+                    break
+
+        if not data_dict:
+            raise ValueError(f"No data found for variables: {variables}")
+
+        if backend is None:
+            backend = _get_default_backend()
+
+        if title is None:
+            title = " vs ".join(variables)
+
+        colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray']
+
+        if backend == 'matplotlib':
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=kwargs.get('figsize', (8, 5)))
+
+            for i, (var, data) in enumerate(data_dict.items()):
+                color = colors[i % len(colors)]
+                ax.plot(data.x, data.y, color=color, linewidth=2, label=var)
+
+            ax.set_xlabel('Position (μm)')
+            ax.set_title(title)
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+            if log_scale:
+                ax.set_yscale('log')
+
+            if show:
+                plt.show()
+            return ax
+        else:
+            import plotly.graph_objects as go
+            fig = go.Figure()
+
+            for i, (var, data) in enumerate(data_dict.items()):
+                color = colors[i % len(colors)]
+                fig.add_trace(go.Scatter(x=data.x, y=data.y, mode='lines',
+                                          name=var, line=dict(color=color, width=2)))
+
+            yaxis_type = 'log' if log_scale else 'linear'
+            fig.update_layout(
+                title=title,
+                xaxis_title='Position (μm)',
+                yaxis_type=yaxis_type,
+                width=kwargs.get('width', 700),
+                height=kwargs.get('height', 500),
+                template='plotly_white'
+            )
+
+            if show:
+                fig.show()
+            return fig
+
     def summary(self) -> str:
         """
         Get a summary of all outputs.
@@ -443,6 +922,16 @@ class OutputManager:
                     status = "loaded" if entry.data is not None else "not loaded"
                     var_info = f" ({entry.variable})" if entry.variable else ""
                     lines.append(f"  - {name}{var_info} [{status}]")
+
+        # Show available groups
+        available_groups = []
+        for group, vars in VARIABLE_GROUPS.items():
+            has_data = any(self.get_by_variable(v) for v in vars)
+            if has_data:
+                available_groups.append(group)
+
+        if available_groups:
+            lines.append(f"\nAvailable composite plots: {', '.join(available_groups)}")
 
         return "\n".join(lines)
 
