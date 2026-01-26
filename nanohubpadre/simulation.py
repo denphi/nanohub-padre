@@ -27,6 +27,7 @@ from .options import Options, Load
 from .plot3d import Plot3D
 from .parser import parse_padre_output, SimulationResult, parse_iv_file, IVData
 from .solution import parse_solution_file, load_solution_series, SolutionData
+from .outputs import OutputManager, OutputType, get_plot1d_variable, PlotData
 
 
 class End(PadreCommand):
@@ -109,6 +110,9 @@ class Simulation:
         # Include end statement
         self._include_end: bool = True
 
+        # Output manager for tracking and accessing results
+        self._outputs: Optional[OutputManager] = None
+
     # Property accessors
     @property
     def mesh(self) -> Optional[Mesh]:
@@ -157,6 +161,93 @@ class Simulation:
     @options.setter
     def options(self, value: Options):
         self._options = value
+
+    @property
+    def outputs(self) -> OutputManager:
+        """
+        Access simulation outputs.
+
+        The OutputManager provides easy access to all simulation outputs
+        (plots, solutions, I-V data) without needing to specify file paths.
+
+        Returns
+        -------
+        OutputManager
+            Manager for accessing parsed output data
+
+        Example
+        -------
+        >>> sim.run()
+        >>> # List all outputs
+        >>> print(sim.outputs.list())
+        >>> # Get specific output
+        >>> pot = sim.outputs.get("pot")
+        >>> pot.plot()
+        >>> # Get by variable type
+        >>> sim.outputs.get_by_variable("potential")
+        """
+        if self._outputs is None:
+            self._build_output_registry()
+        return self._outputs
+
+    def _build_output_registry(self) -> None:
+        """Build the output registry from simulation commands."""
+        self._outputs = OutputManager(working_dir=self.working_dir)
+
+        # Register mesh output
+        if self._mesh and hasattr(self._mesh, 'outfile') and self._mesh.outfile:
+            self._outputs.register(
+                self._mesh.outfile,
+                OutputType.MESH,
+                command=self._mesh
+            )
+
+        # Scan commands for outputs
+        for cmd in self._commands:
+            # Solve commands
+            if isinstance(cmd, Solve):
+                if hasattr(cmd, 'outfile') and cmd.outfile:
+                    self._outputs.register(
+                        cmd.outfile,
+                        OutputType.SOLUTION,
+                        command=cmd
+                    )
+
+            # Log commands
+            elif isinstance(cmd, Log):
+                if hasattr(cmd, 'ivfile') and cmd.ivfile:
+                    self._outputs.register(
+                        cmd.ivfile,
+                        OutputType.IV_DATA,
+                        command=cmd
+                    )
+
+            # Plot1D commands
+            elif isinstance(cmd, Plot1D):
+                if hasattr(cmd, 'outfile') and cmd.outfile:
+                    variable = get_plot1d_variable(cmd)
+                    self._outputs.register(
+                        cmd.outfile,
+                        OutputType.PLOT_1D,
+                        command=cmd,
+                        variable=variable
+                    )
+
+            # Plot2D commands
+            elif isinstance(cmd, Plot2D):
+                if hasattr(cmd, 'outfile') and cmd.outfile:
+                    self._outputs.register(
+                        cmd.outfile,
+                        OutputType.PLOT_2D,
+                        command=cmd
+                    )
+
+    def _load_outputs(self) -> None:
+        """Load all output files after simulation run."""
+        if self._outputs is None:
+            self._build_output_registry()
+        self._outputs.working_dir = self.working_dir
+        self._outputs.load_all()
 
     # Add methods
     def add_region(self, region: Region) -> "Simulation":
@@ -483,6 +574,10 @@ class Simulation:
             output_path = os.path.join(self.working_dir, output_file)
             with open(output_path, 'w') as f:
                 f.write(result.stdout)
+
+        # Automatically load outputs after successful run
+        if result.returncode == 0:
+            self._load_outputs()
 
         return result
 

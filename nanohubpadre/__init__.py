@@ -75,6 +75,14 @@ from .solution import (
     MeshData,
 )
 
+# Output management
+from .outputs import (
+    OutputManager,
+    OutputType,
+    PlotData,
+    OutputEntry,
+)
+
 __version__ = "0.0.1"
 __all__ = [
     "Simulation",
@@ -136,4 +144,9 @@ __all__ = [
     "load_solution_series",
     "SolutionData",
     "MeshData",
+    # Output management
+    "OutputManager",
+    "OutputType",
+    "PlotData",
+    "OutputEntry",
 ]
