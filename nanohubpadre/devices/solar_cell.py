@@ -2,7 +2,7 @@
 Solar Cell factory function.
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 from ..simulation import Simulation
 from ..mesh import Mesh
 from ..region import Region
@@ -11,7 +11,8 @@ from ..doping import Doping
 from ..contact import Contact
 from ..material import Material
 from ..models import Models
-from ..solver import System
+from ..solver import System, Solve
+from ..log import Log
 
 
 def create_solar_cell(
@@ -40,6 +41,13 @@ def create_solar_cell(
     back_surface_velocity: float = 1e7,
     # Simulation options
     title: Optional[str] = None,
+    # Output logging options
+    log_iv: bool = False,
+    iv_file: str = "iv_dark",
+    log_bands_eq: bool = False,
+    # Voltage sweep options
+    forward_sweep: Optional[Tuple[float, float, float]] = None,
+    sweep_electrode: int = 1,
 ) -> Simulation:
     """
     Create a solar cell simulation.
@@ -85,6 +93,17 @@ def create_solar_cell(
         Back surface recombination velocity in cm/s (default: 1e7)
     title : str, optional
         Simulation title
+    log_iv : bool
+        If True, add I-V logging (default: False)
+    iv_file : str
+        Filename for I-V log (default: "iv_dark")
+    log_bands_eq : bool
+        If True, log band diagrams at equilibrium (default: False)
+    forward_sweep : tuple (v_start, v_end, v_step), optional
+        Forward voltage sweep for dark I-V characteristic.
+        Example: (0.0, 0.8, 0.05) sweeps from 0V to 0.8V
+    sweep_electrode : int
+        Electrode number for voltage sweep (default: 1, front contact)
 
     Returns
     -------
@@ -93,12 +112,17 @@ def create_solar_cell(
 
     Example
     -------
+    >>> # Basic solar cell - add your own solve commands
     >>> sim = create_solar_cell(base_thickness=300, base_doping=1e15)
     >>> sim.add_solve(Solve(initial=True))
-    >>> # Light I-V sweep
-    >>> sim.add_log(Log(ivfile="iv_light"))
-    >>> sim.add_solve(Solve(v1=0, vstep=0.05, nsteps=15, electrode=1))
     >>> print(sim.generate_deck())
+    >>>
+    >>> # Dark I-V characteristic
+    >>> sim = create_solar_cell(
+    ...     log_iv=True,
+    ...     forward_sweep=(0.0, 0.75, 0.05)
+    ... )
+    >>> result = sim.run()
     """
     is_n_on_p = device_type.lower() == "n_on_p"
     sim = Simulation(title=title or f"Solar Cell ({'N-on-P' if is_n_on_p else 'P-on-N'})")
@@ -144,6 +168,31 @@ def create_solar_cell(
     sim.models = Models(temperature=temperature, srh=srh, auger=auger,
                         conmob=conmob, fldmob=fldmob)
     sim.system = System(electrons=True, holes=True, newton=True)
+
+    # I-V logging
+    if log_iv:
+        sim.add_log(Log(ivfile=iv_file))
+
+    # Only add solve commands if sweeps are specified
+    if forward_sweep is not None or log_bands_eq:
+        # Always start with equilibrium solve
+        sim.add_solve(Solve(initial=True, outfile="eq"))
+
+        # Forward bias sweep for dark I-V characteristic
+        if forward_sweep is not None:
+            v_start, v_end, v_step = forward_sweep
+            nsteps = int(abs(v_end - v_start) / abs(v_step))
+
+            # Sweep voltage
+            sim.add_solve(Solve(
+                project=True,
+                v1=v_start if sweep_electrode == 1 else None,
+                v2=v_start if sweep_electrode == 2 else None,
+                vstep=v_step,
+                nsteps=nsteps,
+                electrode=sweep_electrode,
+                outfile="iv_fwd"
+            ))
 
     return sim
 

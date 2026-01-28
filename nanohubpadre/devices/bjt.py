@@ -2,7 +2,7 @@
 Bipolar Junction Transistor (BJT) factory function.
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 from ..simulation import Simulation
 from ..mesh import Mesh
 from ..region import Region
@@ -10,7 +10,8 @@ from ..electrode import Electrode
 from ..doping import Doping
 from ..contact import Contact
 from ..models import Models
-from ..solver import System
+from ..solver import System, Solve
+from ..log import Log
 
 
 def create_bjt(
@@ -36,6 +37,16 @@ def create_bjt(
     fldmob: bool = True,
     # Simulation options
     title: Optional[str] = None,
+    # Output logging options
+    log_iv: bool = False,
+    iv_file: str = "ic_vce",
+    log_bands_eq: bool = False,
+    # Voltage sweep options - Common-emitter output characteristics
+    vbe: float = 0.0,
+    vce_sweep: Optional[Tuple[float, float, float]] = None,
+    # Gummel plot sweep
+    gummel_sweep: Optional[Tuple[float, float, float]] = None,
+    gummel_vce: float = 2.0,
 ) -> Simulation:
     """
     Create a Bipolar Junction Transistor (BJT) simulation.
@@ -78,6 +89,22 @@ def create_bjt(
         Enable field-dependent mobility (default: True)
     title : str, optional
         Simulation title
+    log_iv : bool
+        If True, add I-V logging (default: False)
+    iv_file : str
+        Filename for I-V log (default: "ic_vce")
+    log_bands_eq : bool
+        If True, log band diagrams at equilibrium (default: False)
+    vbe : float
+        Base-emitter voltage for output characteristics (default: 0.0)
+    vce_sweep : tuple (v_start, v_end, v_step), optional
+        Collector-emitter voltage sweep for output characteristics (Ic vs Vce).
+        Example: (0.0, 3.0, 0.1) sweeps Vce from 0V to 3V
+    gummel_sweep : tuple (v_start, v_end, v_step), optional
+        Base-emitter voltage sweep for Gummel plot (Ic, Ib vs Vbe).
+        Example: (0.0, 0.8, 0.05) sweeps Vbe from 0V to 0.8V
+    gummel_vce : float
+        Fixed Vce for Gummel plot (default: 2.0)
 
     Returns
     -------
@@ -86,13 +113,26 @@ def create_bjt(
 
     Example
     -------
+    >>> # Basic BJT - add your own solve commands
     >>> sim = create_bjt(device_type="npn", base_width=0.3)
     >>> sim.add_solve(Solve(initial=True))
-    >>> # Common-emitter output characteristic
-    >>> sim.add_solve(Solve(v2=0.7))  # Forward bias base
-    >>> sim.add_log(Log(ivfile="ic_vce"))
-    >>> sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=30, electrode=3))
     >>> print(sim.generate_deck())
+    >>>
+    >>> # Common-emitter output characteristic
+    >>> sim = create_bjt(
+    ...     log_iv=True,
+    ...     vbe=0.7,
+    ...     vce_sweep=(0.0, 3.0, 0.1)
+    ... )
+    >>> result = sim.run()
+    >>>
+    >>> # Gummel plot
+    >>> sim = create_bjt(
+    ...     log_iv=True,
+    ...     iv_file="gummel",
+    ...     gummel_sweep=(0.0, 0.8, 0.05),
+    ...     gummel_vce=2.0
+    ... )
     """
     is_npn = device_type.lower() == "npn"
     sim = Simulation(title=title or f"{'NPN' if is_npn else 'PNP'} BJT")
@@ -139,6 +179,53 @@ def create_bjt(
     sim.models = Models(temperature=temperature, srh=srh, auger=auger, bgn=bgn,
                         conmob=conmob, fldmob=fldmob)
     sim.system = System(electrons=True, holes=True, newton=True)
+
+    # I-V logging
+    if log_iv:
+        sim.add_log(Log(ivfile=iv_file))
+
+    # Only add solve commands if sweeps are specified
+    if vce_sweep is not None or gummel_sweep is not None or log_bands_eq:
+        # Always start with equilibrium solve
+        sim.add_solve(Solve(initial=True, outfile="eq"))
+
+        # Common-emitter output characteristics (Ic vs Vce at fixed Vbe)
+        if vce_sweep is not None:
+            v_start, v_end, v_step = vce_sweep
+            nsteps = int(abs(v_end - v_start) / abs(v_step))
+
+            # Set base-emitter voltage first
+            if abs(vbe) > 1e-10:
+                sim.add_solve(Solve(project=True, v2=vbe, electrode=2, outfile="vbe_set"))
+
+            # Sweep collector-emitter voltage (electrode 3 = collector)
+            sim.add_solve(Solve(
+                project=True,
+                v3=v_start,
+                vstep=v_step,
+                nsteps=nsteps,
+                electrode=3,
+                outfile="ic_vce"
+            ))
+
+        # Gummel plot (Ic, Ib vs Vbe at fixed Vce)
+        if gummel_sweep is not None:
+            v_start, v_end, v_step = gummel_sweep
+            nsteps = int(abs(v_end - v_start) / abs(v_step))
+
+            # Set collector-emitter voltage first
+            if abs(gummel_vce) > 1e-10:
+                sim.add_solve(Solve(project=True, v3=gummel_vce, electrode=3, outfile="vce_set"))
+
+            # Sweep base-emitter voltage (electrode 2 = base)
+            sim.add_solve(Solve(
+                project=True,
+                v2=v_start,
+                vstep=v_step,
+                nsteps=nsteps,
+                electrode=2,
+                outfile="gummel"
+            ))
 
     return sim
 

@@ -2,7 +2,7 @@
 MOS Capacitor factory function.
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 from ..simulation import Simulation
 from ..mesh import Mesh
 from ..region import Region
@@ -11,7 +11,8 @@ from ..doping import Doping
 from ..contact import Contact
 from ..material import Material
 from ..models import Models
-from ..solver import System
+from ..solver import System, Solve
+from ..log import Log
 
 
 def create_mos_capacitor(
@@ -37,6 +38,13 @@ def create_mos_capacitor(
     gate_type: str = "n_poly",
     # Simulation options
     title: Optional[str] = None,
+    # Output logging options
+    log_cv: bool = False,
+    cv_file: str = "cv_data",
+    log_bands_eq: bool = False,
+    # Voltage sweep options
+    vg_sweep: Optional[Tuple[float, float, float]] = None,
+    ac_frequency: float = 1e6,
 ) -> Simulation:
     """
     Create a MOS capacitor simulation.
@@ -75,6 +83,17 @@ def create_mos_capacitor(
         Gate contact type: "n_poly", "p_poly", or "metal" (default: "n_poly")
     title : str, optional
         Simulation title
+    log_cv : bool
+        If True, add AC analysis C-V logging (default: False)
+    cv_file : str
+        Filename for C-V data (default: "cv_data")
+    log_bands_eq : bool
+        If True, log band diagrams at equilibrium (default: False)
+    vg_sweep : tuple (v_start, v_end, v_step), optional
+        Gate voltage sweep for C-V characteristic with AC analysis.
+        Example: (-2.0, 2.0, 0.2) sweeps from -2V to 2V
+    ac_frequency : float
+        AC analysis frequency in Hz (default: 1e6 = 1 MHz)
 
     Returns
     -------
@@ -83,11 +102,18 @@ def create_mos_capacitor(
 
     Example
     -------
+    >>> # Basic MOS capacitor - add your own solve commands
     >>> sim = create_mos_capacitor(oxide_thickness=0.005, substrate_doping=1e17)
     >>> sim.add_solve(Solve(initial=True))
-    >>> sim.add_solve(Solve(v1=0, vstep=-0.2, nsteps=10, electrode=1,
-    ...                     ac_analysis=True, frequency=1e6))
     >>> print(sim.generate_deck())
+    >>>
+    >>> # C-V characteristic with AC analysis
+    >>> sim = create_mos_capacitor(
+    ...     log_cv=True,
+    ...     vg_sweep=(-2.0, 2.0, 0.2),
+    ...     ac_frequency=1e6
+    ... )
+    >>> result = sim.run()
     """
     sim = Simulation(title=title or "MOS Capacitor")
 
@@ -132,6 +158,32 @@ def create_mos_capacitor(
     # Models
     sim.models = Models(temperature=temperature, conmob=conmob, fldmob=fldmob)
     sim.system = System(electrons=True, holes=True, newton=True)
+
+    # C-V logging
+    if log_cv:
+        sim.add_log(Log(acfile=cv_file))
+
+    # Only add solve commands if sweeps are specified
+    if vg_sweep is not None or log_bands_eq:
+        # Always start with equilibrium solve
+        sim.add_solve(Solve(initial=True, outfile="eq"))
+
+        # Gate voltage sweep with AC analysis for C-V
+        if vg_sweep is not None:
+            v_start, v_end, v_step = vg_sweep
+            nsteps = int(abs(v_end - v_start) / abs(v_step))
+
+            # C-V sweep with AC analysis
+            sim.add_solve(Solve(
+                project=True,
+                v1=v_start,
+                vstep=v_step,
+                nsteps=nsteps,
+                electrode=1,
+                ac_analysis=True,
+                frequency=ac_frequency,
+                outfile="cv"
+            ))
 
     return sim
 

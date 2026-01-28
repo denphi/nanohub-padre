@@ -2,7 +2,7 @@
 MESFET factory function.
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 from ..simulation import Simulation
 from ..mesh import Mesh
 from ..region import Region
@@ -10,7 +10,8 @@ from ..electrode import Electrode
 from ..doping import Doping
 from ..contact import Contact
 from ..models import Models
-from ..solver import System
+from ..solver import System, Solve
+from ..log import Log
 
 
 def create_mesfet(
@@ -37,6 +38,13 @@ def create_mesfet(
     fldmob: bool = True,
     # Simulation options
     title: Optional[str] = None,
+    # Output logging options
+    log_iv: bool = False,
+    iv_file: str = "idvd",
+    log_bands_eq: bool = False,
+    # Voltage sweep options
+    vgs: float = 0.0,
+    vds_sweep: Optional[Tuple[float, float, float]] = None,
 ) -> Simulation:
     """
     Create a MESFET (Metal-Semiconductor FET) simulation.
@@ -79,6 +87,17 @@ def create_mesfet(
         Enable field-dependent mobility (default: True)
     title : str, optional
         Simulation title
+    log_iv : bool
+        If True, add I-V logging (default: False)
+    iv_file : str
+        Filename for I-V log (default: "idvd")
+    log_bands_eq : bool
+        If True, log band diagrams at equilibrium (default: False)
+    vgs : float
+        Gate-source voltage for output characteristic (default: 0.0)
+    vds_sweep : tuple (v_start, v_end, v_step), optional
+        Drain-source voltage sweep for output characteristic (Id vs Vds).
+        Example: (0.0, 2.0, 0.1) sweeps Vds from 0V to 2V
 
     Returns
     -------
@@ -87,12 +106,18 @@ def create_mesfet(
 
     Example
     -------
+    >>> # Basic MESFET - add your own solve commands
     >>> sim = create_mesfet(channel_length=0.1, gate_workfunction=4.9)
     >>> sim.add_solve(Solve(initial=True))
-    >>> sim.add_solve(Solve(v3=0, vstep=-0.1, nsteps=5, electrode=3))
-    >>> sim.add_log(Log(ivfile="idvd"))
-    >>> sim.add_solve(Solve(v2=0, vstep=0.1, nsteps=20, electrode=2))
     >>> print(sim.generate_deck())
+    >>>
+    >>> # Output characteristic (Id vs Vds)
+    >>> sim = create_mesfet(
+    ...     log_iv=True,
+    ...     vgs=-0.4,
+    ...     vds_sweep=(0.0, 2.0, 0.1)
+    ... )
+    >>> result = sim.run()
     """
     is_n_type = device_type.lower() == "n"
     sim = Simulation(title=title or f"{'N' if is_n_type else 'P'}-channel MESFET")
@@ -150,6 +175,34 @@ def create_mesfet(
     # Models
     sim.models = Models(temperature=temperature, bgn=bgn, conmob=conmob, fldmob=fldmob)
     sim.system = System(newton=True, carriers=1, electrons=is_n_type, holes=not is_n_type)
+
+    # I-V logging
+    if log_iv:
+        sim.add_log(Log(ivfile=iv_file))
+
+    # Only add solve commands if sweeps are specified
+    if vds_sweep is not None or log_bands_eq:
+        # Always start with equilibrium solve
+        sim.add_solve(Solve(initial=True, outfile="eq"))
+
+        # Output characteristic (Id vs Vds at fixed Vgs)
+        if vds_sweep is not None:
+            v_start, v_end, v_step = vds_sweep
+            nsteps = int(abs(v_end - v_start) / abs(v_step))
+
+            # Set gate-source voltage first
+            if abs(vgs) > 1e-10:
+                sim.add_solve(Solve(project=True, v3=vgs, electrode=3, outfile="vgs_set"))
+
+            # Sweep drain-source voltage (electrode 2 = drain)
+            sim.add_solve(Solve(
+                project=True,
+                v2=v_start,
+                vstep=v_step,
+                nsteps=nsteps,
+                electrode=2,
+                outfile="idvd"
+            ))
 
     return sim
 
