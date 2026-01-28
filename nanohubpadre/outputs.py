@@ -462,7 +462,81 @@ class OutputManager:
                 result[var] = data_list[-1]
         return result
 
-    def plot_band_diagram(self, suffix: str = "", title: Optional[str] = None,
+    def get_band_diagram_sets(self) -> List[Dict[str, Any]]:
+        """
+        Get all band diagram data sets grouped by their naming pattern.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            List of dictionaries, each containing:
+            - 'name': identifier for this set (e.g., 'eq', 'iv')
+            - 'band_val': PlotData for valence band (or None)
+            - 'band_con': PlotData for conduction band (or None)
+            - 'qfn': PlotData for electron quasi-Fermi level (or None)
+            - 'qfp': PlotData for hole quasi-Fermi level (or None)
+        """
+        # Group band outputs by their base name pattern
+        # e.g., vband/cband -> 'band', vbiv/cbiv -> 'iv'
+        band_sets = {}
+
+        for name, entry in self._entries.items():
+            if entry.data is None:
+                continue
+            if entry.variable not in ['band_val', 'band_con', 'qfn', 'qfp']:
+                continue
+
+            # Extract the suffix/identifier from the name
+            # Common patterns: vband/cband, vbiv/cbiv, vbeq/cbeq
+            if entry.variable == 'band_val':
+                # Remove common prefixes for valence band
+                for prefix in ['vband', 'vb', 'ev', 'valence']:
+                    if name.lower().startswith(prefix):
+                        suffix = name[len(prefix):] or 'default'
+                        break
+                else:
+                    suffix = name
+            elif entry.variable == 'band_con':
+                for prefix in ['cband', 'cb', 'ec', 'conduction']:
+                    if name.lower().startswith(prefix):
+                        suffix = name[len(prefix):] or 'default'
+                        break
+                else:
+                    suffix = name
+            elif entry.variable == 'qfn':
+                for prefix in ['qfn', 'efn']:
+                    if name.lower().startswith(prefix):
+                        suffix = name[len(prefix):] or 'default'
+                        break
+                else:
+                    suffix = name
+            elif entry.variable == 'qfp':
+                for prefix in ['qfp', 'efp']:
+                    if name.lower().startswith(prefix):
+                        suffix = name[len(prefix):] or 'default'
+                        break
+                else:
+                    suffix = name
+
+            if suffix not in band_sets:
+                band_sets[suffix] = {
+                    'name': suffix,
+                    'band_val': None,
+                    'band_con': None,
+                    'qfn': None,
+                    'qfp': None
+                }
+
+            band_sets[suffix][entry.variable] = entry.data
+
+        # Convert to list and sort by name
+        result = list(band_sets.values())
+        # Sort with 'default' first, then alphabetically
+        result.sort(key=lambda x: (x['name'] != 'default', x['name']))
+        return result
+
+    def plot_band_diagram(self, index: Optional[Union[int, List[int]]] = None,
+                          suffix: str = "", title: Optional[str] = None,
                           backend: Optional[str] = None, show: bool = True,
                           **kwargs) -> Any:
         """
@@ -470,8 +544,13 @@ class OutputManager:
 
         Parameters
         ----------
+        index : int or List[int], optional
+            Index or list of indices of the band diagram sets to plot.
+            If None, plots all sets on the same axes.
+            Use get_band_diagram_sets() to see available sets.
         suffix : str
-            Suffix to match output names (e.g., "iv" to match "vbiv", "cbiv")
+            Suffix to match output names (e.g., "iv" to match "vbiv", "cbiv").
+            Ignored if index is provided.
         title : str, optional
             Plot title
         backend : str, optional
@@ -488,68 +567,91 @@ class OutputManager:
 
         Example
         -------
-        >>> # After running simulation with Plot1D(band_val=True, outfile="vband")
-        >>> # and Plot1D(band_con=True, outfile="cband")
+        >>> # Plot all band diagrams on the same axes
         >>> sim.outputs.plot_band_diagram()
         >>>
-        >>> # For plots with suffix (e.g., "vbiv", "cbiv")
+        >>> # Plot only the first set (e.g., equilibrium)
+        >>> sim.outputs.plot_band_diagram(index=0)
+        >>>
+        >>> # Plot specific sets (e.g., equilibrium and under bias)
+        >>> sim.outputs.plot_band_diagram(index=[0, 1])
+        >>>
+        >>> # Plot by suffix
         >>> sim.outputs.plot_band_diagram(suffix="iv")
         """
-        # Find band_val and band_con outputs
-        vband_data = None
-        cband_data = None
-        qfn_data = None
-        qfp_data = None
+        all_band_sets = self.get_band_diagram_sets()
 
-        for name, entry in self._entries.items():
-            if entry.data is None:
-                continue
-            if suffix and not name.endswith(suffix) and suffix not in name:
-                continue
-
-            if entry.variable == 'band_val':
-                vband_data = entry.data
-            elif entry.variable == 'band_con':
-                cband_data = entry.data
-            elif entry.variable == 'qfn':
-                qfn_data = entry.data
-            elif entry.variable == 'qfp':
-                qfp_data = entry.data
-
-        if vband_data is None and cband_data is None:
+        if not all_band_sets:
             raise ValueError("No band data found. Need outputs with band_val or band_con.")
+
+        # Select by index/indices if provided
+        if index is not None:
+            # Convert single int to list
+            indices = [index] if isinstance(index, int) else list(index)
+
+            # Validate indices
+            for idx in indices:
+                if idx < 0 or idx >= len(all_band_sets):
+                    raise ValueError(
+                        f"Index {idx} out of range. Available: 0-{len(all_band_sets)-1}"
+                    )
+
+            band_sets = [all_band_sets[i] for i in indices]
+        # Filter by suffix if provided (and index not specified)
+        elif suffix:
+            band_sets = [s for s in all_band_sets
+                         if suffix in s['name'] or s['name'] == suffix]
+            if not band_sets:
+                raise ValueError(f"No band data found matching suffix '{suffix}'.")
+        else:
+            band_sets = all_band_sets
 
         if backend is None:
             backend = _get_default_backend()
 
         if title is None:
-            title = "Energy Band Diagram"
-            if suffix:
-                title += f" ({suffix})"
+            if len(band_sets) == 1:
+                title = f"Energy Band Diagram ({band_sets[0]['name']})"
+            else:
+                title = "Energy Band Diagram"
 
         if backend == 'matplotlib':
-            return self._plot_bands_matplotlib(
-                vband_data, cband_data, qfn_data, qfp_data, title, show, **kwargs
-            )
+            return self._plot_bands_matplotlib_multi(band_sets, title, show, **kwargs)
         else:
-            return self._plot_bands_plotly(
-                vband_data, cband_data, qfn_data, qfp_data, title, show, **kwargs
-            )
+            return self._plot_bands_plotly_multi(band_sets, title, show, **kwargs)
 
-    def _plot_bands_matplotlib(self, vband, cband, qfn, qfp, title, show, **kwargs):
-        """Plot band diagram using matplotlib."""
+    def _plot_bands_matplotlib_multi(self, band_sets: List[Dict], title: str,
+                                       show: bool, **kwargs):
+        """Plot multiple band diagram sets using matplotlib."""
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots(figsize=kwargs.get('figsize', (8, 5)))
 
-        if cband is not None:
-            ax.plot(cband.x, cband.y, 'b-', linewidth=2, label='Ec')
-        if vband is not None:
-            ax.plot(vband.x, vband.y, 'r-', linewidth=2, label='Ev')
-        if qfn is not None:
-            ax.plot(qfn.x, qfn.y, 'b--', linewidth=1, label='Efn')
-        if qfp is not None:
-            ax.plot(qfp.x, qfp.y, 'r--', linewidth=1, label='Efp')
+        # Color palette for multiple sets
+        colors = ['blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'cyan']
+
+        for i, band_set in enumerate(band_sets):
+            color = colors[i % len(colors)]
+            label_suffix = f" ({band_set['name']})" if len(band_sets) > 1 else ""
+
+            cband = band_set['band_con']
+            vband = band_set['band_val']
+            qfn = band_set['qfn']
+            qfp = band_set['qfp']
+
+            if cband is not None:
+                ax.plot(cband.x, cband.y, color=color, linestyle='-',
+                        linewidth=2, label=f'Ec{label_suffix}')
+            if vband is not None:
+                ax.plot(vband.x, vband.y, color=color, linestyle='-',
+                        linewidth=2, label=f'Ev{label_suffix}',
+                        alpha=0.7 if cband is not None else 1.0)
+            if qfn is not None:
+                ax.plot(qfn.x, qfn.y, color=color, linestyle='--',
+                        linewidth=1, label=f'Efn{label_suffix}')
+            if qfp is not None:
+                ax.plot(qfp.x, qfp.y, color=color, linestyle=':',
+                        linewidth=1, label=f'Efp{label_suffix}')
 
         ax.set_xlabel('Position (μm)')
         ax.set_ylabel('Energy (eV)')
@@ -562,24 +664,50 @@ class OutputManager:
 
         return ax
 
-    def _plot_bands_plotly(self, vband, cband, qfn, qfp, title, show, **kwargs):
-        """Plot band diagram using plotly."""
+    def _plot_bands_plotly_multi(self, band_sets: List[Dict], title: str,
+                                  show: bool, **kwargs):
+        """Plot multiple band diagram sets using plotly."""
         import plotly.graph_objects as go
 
         fig = go.Figure()
 
-        if cband is not None:
-            fig.add_trace(go.Scatter(x=cband.x, y=cband.y, mode='lines',
-                                      name='Ec', line=dict(color='blue', width=2)))
-        if vband is not None:
-            fig.add_trace(go.Scatter(x=vband.x, y=vband.y, mode='lines',
-                                      name='Ev', line=dict(color='red', width=2)))
-        if qfn is not None:
-            fig.add_trace(go.Scatter(x=qfn.x, y=qfn.y, mode='lines',
-                                      name='Efn', line=dict(color='blue', width=1, dash='dash')))
-        if qfp is not None:
-            fig.add_trace(go.Scatter(x=qfp.x, y=qfp.y, mode='lines',
-                                      name='Efp', line=dict(color='red', width=1, dash='dash')))
+        # Color palette for multiple sets
+        colors = ['blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'cyan']
+
+        for i, band_set in enumerate(band_sets):
+            color = colors[i % len(colors)]
+            label_suffix = f" ({band_set['name']})" if len(band_sets) > 1 else ""
+
+            cband = band_set['band_con']
+            vband = band_set['band_val']
+            qfn = band_set['qfn']
+            qfp = band_set['qfp']
+
+            if cband is not None:
+                fig.add_trace(go.Scatter(
+                    x=cband.x, y=cband.y, mode='lines',
+                    name=f'Ec{label_suffix}',
+                    line=dict(color=color, width=2)
+                ))
+            if vband is not None:
+                fig.add_trace(go.Scatter(
+                    x=vband.x, y=vband.y, mode='lines',
+                    name=f'Ev{label_suffix}',
+                    line=dict(color=color, width=2),
+                    opacity=0.7 if cband is not None else 1.0
+                ))
+            if qfn is not None:
+                fig.add_trace(go.Scatter(
+                    x=qfn.x, y=qfn.y, mode='lines',
+                    name=f'Efn{label_suffix}',
+                    line=dict(color=color, width=1, dash='dash')
+                ))
+            if qfp is not None:
+                fig.add_trace(go.Scatter(
+                    x=qfp.x, y=qfp.y, mode='lines',
+                    name=f'Efp{label_suffix}',
+                    line=dict(color=color, width=1, dash='dot')
+                ))
 
         fig.update_layout(
             title=title,

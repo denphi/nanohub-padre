@@ -443,7 +443,7 @@ class Simulation:
             use_stdin: bool = False,
             verbose: bool = False,
             output_dir: Optional[str] = None,
-            auto_output_dir: bool = False) -> subprocess.CompletedProcess:
+            auto_output_dir: bool = True) -> subprocess.CompletedProcess:
         """
         Run the PADRE simulation.
 
@@ -468,9 +468,9 @@ class Simulation:
             subdirectory in working_dir and runs the simulation there.
             This prevents outputs from different runs from being mixed.
         auto_output_dir : bool
-            If True, automatically creates a timestamped output directory.
+            If True (default), automatically creates a timestamped output directory.
             Equivalent to calling create_output_dir() before run().
-            Ignored if output_dir is provided.
+            Ignored if output_dir is provided. Set to False to run in current working_dir.
 
         Returns
         -------
@@ -479,13 +479,16 @@ class Simulation:
 
         Example
         -------
-        >>> # Run with automatic output directory
-        >>> result = sim.run(auto_output_dir=True)
+        >>> # Run with automatic output directory (default)
+        >>> result = sim.run()
         >>> print(sim.working_dir)  # /path/to/simulation_20240115_143022
         >>>
         >>> # Run with specific output directory
         >>> result = sim.run(output_dir="forward_bias_sweep")
         >>> print(sim.working_dir)  # /path/to/forward_bias_sweep
+        >>>
+        >>> # Run in current working_dir without creating subdirectory
+        >>> result = sim.run(auto_output_dir=False)
         """
         # Create output directory if requested
         if output_dir is not None:
@@ -1106,7 +1109,8 @@ class Simulation:
     # High-level plotting (uses OutputManager or SolutionData)
     # -----------------------------------------------------------------------
 
-    def plot_band_diagram(self, suffix: str = "", **kwargs):
+    def plot_band_diagram(self, index: Optional[Union[int, List[int]]] = None,
+                           suffix: str = "", **kwargs):
         """
         Plot energy band diagram from Plot1D outputs.
 
@@ -1114,8 +1118,13 @@ class Simulation:
 
         Parameters
         ----------
+        index : int or List[int], optional
+            Index or list of indices of the band diagram sets to plot.
+            If None, plots all sets on the same axes.
+            Use outputs.get_band_diagram_sets() to see available sets.
         suffix : str
-            Suffix to match Plot1D output names (e.g., "eq" for "vbeq", "cbeq")
+            Suffix to match Plot1D output names (e.g., "eq" for "vbeq", "cbeq").
+            Ignored if index is provided.
         **kwargs
             Additional arguments (backend, show, title, etc.)
 
@@ -1126,10 +1135,19 @@ class Simulation:
 
         Example
         -------
+        >>> # Plot all band diagrams
         >>> sim.plot_band_diagram()
-        >>> sim.plot_band_diagram(suffix="fwd")
+        >>>
+        >>> # Plot only equilibrium (first set)
+        >>> sim.plot_band_diagram(index=0)
+        >>>
+        >>> # Plot equilibrium and biased
+        >>> sim.plot_band_diagram(index=[0, 1])
+        >>>
+        >>> # Plot by suffix
+        >>> sim.plot_band_diagram(suffix="iv")
         """
-        return self.outputs.plot_band_diagram(suffix=suffix, **kwargs)
+        return self.outputs.plot_band_diagram(index=index, suffix=suffix, **kwargs)
 
     def plot_carriers(self, suffix: str = "", log_scale: bool = True, **kwargs):
         """
