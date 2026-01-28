@@ -320,6 +320,330 @@ class Simulation:
         self._commands.append(plot)
         return self
 
+    # -----------------------------------------------------------------------
+    # High-level output logging helpers
+    # -----------------------------------------------------------------------
+
+    def log_band_diagram(self, outfile_prefix: str = "band",
+                         x_start: float = 0.0, y_start: float = 0.0,
+                         x_end: Optional[float] = None, y_end: Optional[float] = None,
+                         include_qf: bool = False) -> "Simulation":
+        """
+        Add Plot1D commands to log band diagram data (Ec, Ev, optionally Efn, Efp).
+
+        Parameters
+        ----------
+        outfile_prefix : str
+            Prefix for output files (default: "band").
+            Creates files: {prefix}_ec, {prefix}_ev, and optionally {prefix}_efn, {prefix}_efp
+        x_start, y_start : float
+            Start point of the line cut (default: 0.0, 0.0)
+        x_end, y_end : float, optional
+            End point of the line cut. If None, uses mesh dimensions.
+        include_qf : bool
+            If True, also log quasi-Fermi levels (Efn, Efp)
+
+        Returns
+        -------
+        Simulation
+            Self for method chaining
+
+        Example
+        -------
+        >>> sim = create_pn_diode()
+        >>> sim.add_solve(Solve(initial=True))
+        >>> sim.log_band_diagram("eq")  # Logs eq_ec, eq_ev
+        >>> sim.add_solve(Solve(project=True, vstep=0.1, nsteps=5, electrode=1))
+        >>> sim.log_band_diagram("fwd", include_qf=True)  # Logs fwd_ec, fwd_ev, fwd_efn, fwd_efp
+        """
+        # Default end point to mesh dimensions if not specified
+        if x_end is None:
+            x_end = x_start
+        if y_end is None and self._mesh:
+            # Try to get mesh extent from mesh definition
+            y_end = 2.0  # Default assumption
+
+        # Conduction band (Ec)
+        self._commands.append(Plot1D(
+            band_con=True,
+            x_start=x_start, y_start=y_start,
+            x_end=x_end, y_end=y_end,
+            outfile=f"cb{outfile_prefix}"
+        ))
+
+        # Valence band (Ev)
+        self._commands.append(Plot1D(
+            band_val=True,
+            x_start=x_start, y_start=y_start,
+            x_end=x_end, y_end=y_end,
+            outfile=f"vb{outfile_prefix}"
+        ))
+
+        # Quasi-Fermi levels if requested
+        if include_qf:
+            self._commands.append(Plot1D(
+                qfn=True,
+                x_start=x_start, y_start=y_start,
+                x_end=x_end, y_end=y_end,
+                outfile=f"qfn{outfile_prefix}"
+            ))
+            self._commands.append(Plot1D(
+                qfp=True,
+                x_start=x_start, y_start=y_start,
+                x_end=x_end, y_end=y_end,
+                outfile=f"qfp{outfile_prefix}"
+            ))
+
+        return self
+
+    def log_carriers(self, outfile_prefix: str = "carrier",
+                     x_start: float = 0.0, y_start: float = 0.0,
+                     x_end: Optional[float] = None, y_end: Optional[float] = None) -> "Simulation":
+        """
+        Add Plot1D commands to log carrier concentrations (n, p).
+
+        Parameters
+        ----------
+        outfile_prefix : str
+            Prefix for output files (default: "carrier").
+            Creates files: {prefix}_n, {prefix}_p
+        x_start, y_start : float
+            Start point of the line cut
+        x_end, y_end : float, optional
+            End point of the line cut
+
+        Returns
+        -------
+        Simulation
+            Self for method chaining
+        """
+        if x_end is None:
+            x_end = x_start
+        if y_end is None:
+            y_end = 2.0
+
+        self._commands.append(Plot1D(
+            electrons=True,
+            x_start=x_start, y_start=y_start,
+            x_end=x_end, y_end=y_end,
+            outfile=f"n{outfile_prefix}"
+        ))
+        self._commands.append(Plot1D(
+            holes=True,
+            x_start=x_start, y_start=y_start,
+            x_end=x_end, y_end=y_end,
+            outfile=f"p{outfile_prefix}"
+        ))
+
+        return self
+
+    def log_potential(self, outfile: str = "potential",
+                      x_start: float = 0.0, y_start: float = 0.0,
+                      x_end: Optional[float] = None, y_end: Optional[float] = None) -> "Simulation":
+        """
+        Add Plot1D command to log electrostatic potential.
+
+        Parameters
+        ----------
+        outfile : str
+            Output filename (default: "potential")
+        x_start, y_start : float
+            Start point of the line cut
+        x_end, y_end : float, optional
+            End point of the line cut
+
+        Returns
+        -------
+        Simulation
+            Self for method chaining
+        """
+        if x_end is None:
+            x_end = x_start
+        if y_end is None:
+            y_end = 2.0
+
+        self._commands.append(Plot1D(
+            potential=True,
+            x_start=x_start, y_start=y_start,
+            x_end=x_end, y_end=y_end,
+            outfile=outfile
+        ))
+
+        return self
+
+    def log_efield(self, outfile: str = "efield",
+                   x_start: float = 0.0, y_start: float = 0.0,
+                   x_end: Optional[float] = None, y_end: Optional[float] = None) -> "Simulation":
+        """
+        Add Plot1D command to log electric field.
+
+        Parameters
+        ----------
+        outfile : str
+            Output filename (default: "efield")
+        x_start, y_start : float
+            Start point of the line cut
+        x_end, y_end : float, optional
+            End point of the line cut
+
+        Returns
+        -------
+        Simulation
+            Self for method chaining
+        """
+        if x_end is None:
+            x_end = x_start
+        if y_end is None:
+            y_end = 2.0
+
+        self._commands.append(Plot1D(
+            e_field=True,
+            x_start=x_start, y_start=y_start,
+            x_end=x_end, y_end=y_end,
+            outfile=outfile
+        ))
+
+        return self
+
+    # -----------------------------------------------------------------------
+    # Voltage sweep helpers
+    # -----------------------------------------------------------------------
+
+    def add_voltage_sweep(self, electrode: int,
+                          v_start: float = 0.0,
+                          v_end: float = 1.0,
+                          v_step: float = 0.1,
+                          outfile: Optional[str] = None,
+                          log_bands: bool = False,
+                          log_carriers: bool = False,
+                          band_prefix: str = "sweep",
+                          carrier_prefix: str = "sweep",
+                          x_start: float = 0.0, y_start: float = 0.0,
+                          x_end: Optional[float] = None, y_end: Optional[float] = None) -> "Simulation":
+        """
+        Add a voltage sweep with optional band diagram and carrier logging at each step.
+
+        Parameters
+        ----------
+        electrode : int
+            Electrode number to sweep voltage on
+        v_start : float
+            Starting voltage (default: 0.0)
+        v_end : float
+            Ending voltage (default: 1.0)
+        v_step : float
+            Voltage step size (default: 0.1)
+        outfile : str, optional
+            Solution output file prefix
+        log_bands : bool
+            If True, log band diagrams at each bias point
+        log_carriers : bool
+            If True, log carrier concentrations at each bias point
+        band_prefix : str
+            Prefix for band diagram files (default: "sweep")
+        carrier_prefix : str
+            Prefix for carrier files (default: "sweep")
+        x_start, y_start : float
+            Start point for line cuts
+        x_end, y_end : float, optional
+            End point for line cuts
+
+        Returns
+        -------
+        Simulation
+            Self for method chaining
+
+        Example
+        -------
+        >>> sim = create_pn_diode()
+        >>> sim.add_solve(Solve(initial=True))
+        >>> sim.add_voltage_sweep(
+        ...     electrode=1,
+        ...     v_start=0.0, v_end=0.8, v_step=0.1,
+        ...     log_bands=True, band_prefix="fwd"
+        ... )
+        """
+        nsteps = int(abs(v_end - v_start) / abs(v_step))
+
+        # Add the solve command for the sweep
+        self._commands.append(Solve(
+            project=True,
+            v1=v_start if electrode == 1 else 0.0,
+            v2=v_start if electrode == 2 else 0.0,
+            vstep=v_step,
+            nsteps=nsteps,
+            electrode=electrode,
+            outfile=outfile
+        ))
+
+        # Add band logging if requested
+        if log_bands:
+            self.log_band_diagram(
+                outfile_prefix=band_prefix,
+                x_start=x_start, y_start=y_start,
+                x_end=x_end, y_end=y_end,
+                include_qf=True
+            )
+
+        # Add carrier logging if requested
+        if log_carriers:
+            self.log_carriers(
+                outfile_prefix=carrier_prefix,
+                x_start=x_start, y_start=y_start,
+                x_end=x_end, y_end=y_end
+            )
+
+        return self
+
+    def add_equilibrium_solve(self, outfile: str = "eq",
+                              log_bands: bool = False,
+                              log_carriers: bool = False,
+                              x_start: float = 0.0, y_start: float = 0.0,
+                              x_end: Optional[float] = None, y_end: Optional[float] = None) -> "Simulation":
+        """
+        Add equilibrium solve with optional output logging.
+
+        Parameters
+        ----------
+        outfile : str
+            Solution output file (default: "eq")
+        log_bands : bool
+            If True, log band diagrams at equilibrium
+        log_carriers : bool
+            If True, log carrier concentrations at equilibrium
+        x_start, y_start : float
+            Start point for line cuts
+        x_end, y_end : float, optional
+            End point for line cuts
+
+        Returns
+        -------
+        Simulation
+            Self for method chaining
+
+        Example
+        -------
+        >>> sim = create_pn_diode()
+        >>> sim.add_equilibrium_solve(log_bands=True)
+        """
+        self._commands.append(Solve(initial=True, outfile=outfile))
+
+        if log_bands:
+            self.log_band_diagram(
+                outfile_prefix="eq",
+                x_start=x_start, y_start=y_start,
+                x_end=x_end, y_end=y_end
+            )
+
+        if log_carriers:
+            self.log_carriers(
+                outfile_prefix="eq",
+                x_start=x_start, y_start=y_start,
+                x_end=x_end, y_end=y_end
+            )
+
+        return self
+
     def add_comment(self, text: str) -> "Simulation":
         """Add a comment to the preamble."""
         self._preamble.append(Comment(text))

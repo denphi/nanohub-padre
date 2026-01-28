@@ -2,7 +2,7 @@
 MOSFET factory function.
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 from ..simulation import Simulation
 from ..mesh import Mesh
 from ..region import Region
@@ -10,7 +10,8 @@ from ..electrode import Electrode
 from ..doping import Doping
 from ..contact import Contact
 from ..models import Models
-from ..solver import System
+from ..solver import System, Solve
+from ..log import Log
 
 
 def create_mosfet(
@@ -34,6 +35,14 @@ def create_mosfet(
     carriers: int = 1,
     # Simulation options
     title: Optional[str] = None,
+    # Output logging options
+    log_iv: bool = False,
+    iv_file: str = "idvg",
+    # Voltage sweep options
+    vgs_sweep: Optional[Tuple[float, float, float]] = None,
+    vds: float = 0.0,
+    vds_sweep: Optional[Tuple[float, float, float]] = None,
+    vgs: float = 0.0,
 ) -> Simulation:
     """
     Create a MOSFET simulation.
@@ -73,6 +82,20 @@ def create_mosfet(
         Number of carriers to solve (1 or 2, default: 1)
     title : str, optional
         Simulation title
+    log_iv : bool
+        If True, add I-V logging (default: False)
+    iv_file : str
+        Filename for I-V log (default: "idvg")
+    vgs_sweep : tuple (v_start, v_end, v_step), optional
+        Gate voltage sweep for transfer characteristic (Id-Vg).
+        Example: (0.0, 1.5, 0.1) sweeps Vg from 0V to 1.5V in 0.1V steps
+    vds : float
+        Drain voltage for transfer characteristic (default: 0.0)
+    vds_sweep : tuple (v_start, v_end, v_step), optional
+        Drain voltage sweep for output characteristic (Id-Vd).
+        Example: (0.0, 1.0, 0.05) sweeps Vd from 0V to 1.0V in 0.05V steps
+    vgs : float
+        Gate voltage for output characteristic (default: 0.0)
 
     Returns
     -------
@@ -81,12 +104,20 @@ def create_mosfet(
 
     Example
     -------
+    >>> # Basic MOSFET - no solve commands, add your own
     >>> sim = create_mosfet(channel_length=0.05, device_type="nmos")
     >>> sim.add_solve(Solve(initial=True))
-    >>> # Transfer characteristic
-    >>> sim.add_log(Log(ivfile="idvg"))
-    >>> sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
     >>> print(sim.generate_deck())
+    >>>
+    >>> # Complete transfer characteristic
+    >>> sim = create_mosfet(
+    ...     log_iv=True,
+    ...     vgs_sweep=(0.0, 1.5, 0.1),
+    ...     vds=0.1
+    ... )
+    >>> result = sim.run()
+    >>> # Access I-V data
+    >>> iv = sim.outputs.get("idvg")
     """
     is_nmos = device_type.lower() == "nmos"
     sim = Simulation(title=title or f"{'NMOS' if is_nmos else 'PMOS'} MOSFET")
@@ -157,6 +188,53 @@ def create_mosfet(
         sim.system = System(newton=True, carriers=1, electrons=is_nmos, holes=not is_nmos)
     else:
         sim.system = System(newton=True, carriers=2, electrons=True, holes=True)
+
+    # I-V logging
+    if log_iv:
+        sim.add_log(Log(ivfile=iv_file))
+
+    # Only add solve commands if sweeps are specified
+    if vgs_sweep is not None or vds_sweep is not None:
+        # Always start with equilibrium solve
+        sim.add_solve(Solve(initial=True, outfile="eq"))
+
+        # Transfer characteristic (Id-Vg at fixed Vd)
+        if vgs_sweep is not None:
+            v_start, v_end, v_step = vgs_sweep
+            nsteps = int(abs(v_end - v_start) / abs(v_step))
+
+            # Set initial drain voltage
+            if abs(vds) > 1e-10:
+                sim.add_solve(Solve(project=True, v2=vds, electrode=2, outfile="vd_set"))
+
+            # Sweep gate voltage
+            sim.add_solve(Solve(
+                project=True,
+                v3=v_start,
+                vstep=v_step,
+                nsteps=nsteps,
+                electrode=3,
+                outfile="idvg"
+            ))
+
+        # Output characteristic (Id-Vd at fixed Vg)
+        if vds_sweep is not None:
+            v_start, v_end, v_step = vds_sweep
+            nsteps = int(abs(v_end - v_start) / abs(v_step))
+
+            # Set initial gate voltage if not already in transfer mode
+            if vgs_sweep is None and abs(vgs) > 1e-10:
+                sim.add_solve(Solve(project=True, v3=vgs, electrode=3, outfile="vg_set"))
+
+            # Sweep drain voltage
+            sim.add_solve(Solve(
+                project=True,
+                v2=v_start,
+                vstep=v_step,
+                nsteps=nsteps,
+                electrode=2,
+                outfile="idvd"
+            ))
 
     return sim
 
