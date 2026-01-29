@@ -368,7 +368,8 @@ class Simulation:
             band_con=True,
             x_start=x_start, y_start=y_start,
             x_end=x_end, y_end=y_end,
-            outfile=f"cb{outfile_prefix}"
+            outfile=f"cb{outfile_prefix}",
+            ascii=True
         ))
 
         # Valence band (Ev)
@@ -376,7 +377,8 @@ class Simulation:
             band_val=True,
             x_start=x_start, y_start=y_start,
             x_end=x_end, y_end=y_end,
-            outfile=f"vb{outfile_prefix}"
+            outfile=f"vb{outfile_prefix}",
+            ascii=True
         ))
 
         # Quasi-Fermi levels if requested
@@ -385,13 +387,15 @@ class Simulation:
                 qfn=True,
                 x_start=x_start, y_start=y_start,
                 x_end=x_end, y_end=y_end,
-                outfile=f"qfn{outfile_prefix}"
+                outfile=f"qfn{outfile_prefix}",
+                ascii=True
             ))
             self._commands.append(Plot1D(
                 qfp=True,
                 x_start=x_start, y_start=y_start,
                 x_end=x_end, y_end=y_end,
-                outfile=f"qfp{outfile_prefix}"
+                outfile=f"qfp{outfile_prefix}",
+                ascii=True
             ))
 
         return self
@@ -426,13 +430,15 @@ class Simulation:
             electrons=True,
             x_start=x_start, y_start=y_start,
             x_end=x_end, y_end=y_end,
-            outfile=f"n{outfile_prefix}"
+            outfile=f"n{outfile_prefix}",
+            ascii=True
         ))
         self._commands.append(Plot1D(
             holes=True,
             x_start=x_start, y_start=y_start,
             x_end=x_end, y_end=y_end,
-            outfile=f"p{outfile_prefix}"
+            outfile=f"p{outfile_prefix}",
+            ascii=True
         ))
 
         return self
@@ -466,7 +472,8 @@ class Simulation:
             potential=True,
             x_start=x_start, y_start=y_start,
             x_end=x_end, y_end=y_end,
-            outfile=outfile
+            outfile=outfile,
+            ascii=True
         ))
 
         return self
@@ -500,7 +507,8 @@ class Simulation:
             e_field=True,
             x_start=x_start, y_start=y_start,
             x_end=x_end, y_end=y_end,
-            outfile=outfile
+            outfile=outfile,
+            ascii=True
         ))
 
         return self
