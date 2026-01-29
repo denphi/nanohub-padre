@@ -8,6 +8,7 @@ from ..mesh import Mesh
 from ..region import Region
 from ..electrode import Electrode
 from ..doping import Doping
+from ..contact import Contact
 from ..material import Material
 from ..models import Models
 from ..solver import System, Solve
@@ -158,6 +159,9 @@ def create_pn_diode(
                           x_left=0, x_right=junction_x, y_top=0, y_bottom=width, uniform=True))
     sim.add_doping(Doping(region=1, n_type=True, concentration=n_doping,
                           x_left=junction_x, x_right=length, y_top=0, y_bottom=width, uniform=True))
+
+    # Contacts - ohmic contacts for all electrodes
+    sim.add_contact(Contact(all_contacts=True, neutral=True))
 
     # Material with lifetimes
     sim.add_material(Material(name="silicon", taun0=taun0, taup0=taup0,
