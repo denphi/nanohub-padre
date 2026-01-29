@@ -172,6 +172,9 @@ def create_pn_diode(
     if log_iv:
         sim.add_log(Log(ivfile=iv_file))
 
+    # Line cut position for band diagrams (horizontal through middle of device)
+    y_cut = width / 2.0
+
     # Only add solve commands if sweeps are specified
     if forward_sweep is not None or reverse_sweep is not None or log_bands_eq:
         # Always start with equilibrium solve
@@ -181,8 +184,8 @@ def create_pn_diode(
         if log_bands_eq:
             sim.log_band_diagram(
                 outfile_prefix="eq",
-                x_start=0.0, y_start=0.0,
-                x_end=0.0, y_end=length
+                x_start=0.0, y_start=y_cut,
+                x_end=length, y_end=y_cut
             )
 
         # Forward bias sweep
@@ -201,8 +204,8 @@ def create_pn_diode(
             if log_bands_bias:
                 sim.log_band_diagram(
                     outfile_prefix="fwd",
-                    x_start=0.0, y_start=0.0,
-                    x_end=0.0, y_end=length,
+                    x_start=0.0, y_start=y_cut,
+                    x_end=length, y_end=y_cut,
                     include_qf=True
                 )
 
@@ -222,8 +225,8 @@ def create_pn_diode(
             if log_bands_bias:
                 sim.log_band_diagram(
                     outfile_prefix="rev",
-                    x_start=0.0, y_start=0.0,
-                    x_end=0.0, y_end=length,
+                    x_start=0.0, y_start=y_cut,
+                    x_end=length, y_end=y_cut,
                     include_qf=True
                 )
 

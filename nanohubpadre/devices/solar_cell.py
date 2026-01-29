@@ -178,6 +178,15 @@ def create_solar_cell(
         # Always start with equilibrium solve
         sim.add_solve(Solve(initial=True, outfile="eq"))
 
+        # Log band diagram at equilibrium (vertical cut along device depth)
+        if log_bands_eq:
+            x_mid = device_width / 2
+            sim.log_band_diagram(
+                outfile_prefix="eq",
+                x_start=x_mid, x_end=x_mid,
+                y_start=0.0, y_end=total_depth
+            )
+
         # Forward bias sweep for dark I-V characteristic
         if forward_sweep is not None:
             v_start, v_end, v_step = forward_sweep

@@ -189,6 +189,15 @@ def create_bjt(
         # Always start with equilibrium solve
         sim.add_solve(Solve(initial=True, outfile="eq"))
 
+        # Log band diagram at equilibrium (horizontal cut along device from emitter to collector)
+        if log_bands_eq:
+            y_mid = device_depth / 2
+            sim.log_band_diagram(
+                outfile_prefix="eq",
+                x_start=0.0, x_end=total_width,
+                y_start=y_mid, y_end=y_mid
+            )
+
         # Common-emitter output characteristics (Ic vs Vce at fixed Vbe)
         if vce_sweep is not None:
             v_start, v_end, v_step = vce_sweep

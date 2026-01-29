@@ -168,6 +168,15 @@ def create_mos_capacitor(
         # Always start with equilibrium solve
         sim.add_solve(Solve(initial=True, outfile="eq"))
 
+        # Log band diagram at equilibrium (vertical cut through oxide and silicon)
+        if log_bands_eq:
+            x_mid = device_width / 2
+            sim.log_band_diagram(
+                outfile_prefix="eq",
+                x_start=x_mid, x_end=x_mid,
+                y_start=0.0, y_end=total_thickness
+            )
+
         # Gate voltage sweep with AC analysis for C-V
         if vg_sweep is not None:
             v_start, v_end, v_step = vg_sweep

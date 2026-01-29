@@ -185,6 +185,16 @@ def create_mesfet(
         # Always start with equilibrium solve
         sim.add_solve(Solve(initial=True, outfile="eq"))
 
+        # Log band diagram at equilibrium (horizontal cut through channel)
+        if log_bands_eq:
+            # Cut at surface (top of channel) where current flows
+            y_channel = total_depth - channel_depth / 2
+            sim.log_band_diagram(
+                outfile_prefix="eq",
+                x_start=0.0, x_end=device_width,
+                y_start=y_channel, y_end=y_channel
+            )
+
         # Output characteristic (Id vs Vds at fixed Vgs)
         if vds_sweep is not None:
             v_start, v_end, v_step = vds_sweep
