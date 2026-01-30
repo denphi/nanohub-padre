@@ -1172,10 +1172,18 @@ class ACFileParser:
         Q  electrode  capacitance  frequency  v1  v2  v3 ...
            continuation_line_with_more_data
            continuation_line_with_more_data
-           electrode_num  values...
-           electrode_num  values...
+           electrode_num  val1 val2 val3 capacitance val4 ...
+           electrode_num  val1 val2 val3 capacitance val4 ...
         Q  electrode  capacitance  frequency  v1  v2  v3 ...  (next bias point)
+        
+        The varying capacitance is in the numbered electrode lines (5 values),
+        specifically the 4th value (index 3).
         """
+        import re
+        
+        # Fix scientific notation format (e.g., 1.23-04 -> 1.23E-04)
+        content = re.sub(r'([0-9])([-+][0-9])', r'\g<1>E\g<2>', content)
+        
         lines = [l.rstrip() for l in content.split('\n')]
         if not lines:
             return ACData()
@@ -1185,26 +1193,27 @@ class ACFileParser:
         voltage_data = {}  # electrode -> list of voltages
         capacitance_data = {}  # (electrode, electrode) -> list of capacitances
         
+        current_voltage = None  # Store voltage from Q record
+        
         try:
-            i = 0
-            while i < len(lines):
-                line = lines[i].strip()
+            for line in lines:
+                line = line.strip()
                 
                 # Skip empty lines and header
                 if not line or line.startswith('#'):
-                    i += 1
                     continue
-                    
-                # Q records contain the AC data
+                
+                # Extract all numeric values from the line
+                regex = re.findall(r'-?\s*[0-9]+\.?[0-9]*(?:[Ee]\s*[-+]?\s*[0-9]+)?', line)
+                
+                # Q records (start with 'Q')
                 if line.startswith('Q'):
                     parts = line.split()
                     if len(parts) < 5:
-                        i += 1
                         continue
                         
                     # Format: Q electrode capacitance frequency v1 v2 v3 ...
                     electrode = int(parts[1])
-                    capacitance = float(parts[2])
                     frequency = float(parts[3])
                     
                     # Voltages start at index 4
@@ -1215,23 +1224,37 @@ class ACFileParser:
                         except ValueError:
                             break
                     
+                    # Store the gate voltage (first voltage value)
+                    if len(voltages) > 0:
+                        current_voltage = voltages[0]
+                    
                     # Store frequency
                     if frequency not in frequencies:
                         frequencies.append(frequency)
-                    
-                    # Store voltages for all electrodes
-                    for elec_num in range(1, len(voltages) + 1):
-                        if elec_num not in voltage_data:
-                            voltage_data[elec_num] = []
-                        voltage_data[elec_num].append(voltages[elec_num - 1])
-                    
-                    # Store capacitance for this electrode
-                    key = (electrode, electrode)
-                    if key not in capacitance_data:
-                        capacitance_data[key] = []
-                    capacitance_data[key].append(capacitance)
                 
-                i += 1
+                # Lines with 5 numeric values contain electrode capacitance data
+                elif len(regex) == 5:
+                    try:
+                        elec_num = int(float(regex[0].strip()))
+                        # The 4th value (index 3) is the capacitance
+                        cap_value = abs(float(regex[3].strip())) * 1e8  # Scale factor from your code
+                        
+                        # Store voltage for this electrode
+                        if current_voltage is not None:
+                            if elec_num not in voltage_data:
+                                voltage_data[elec_num] = []
+                            # Only add if it's a new voltage value
+                            if len(voltage_data[elec_num]) == 0 or voltage_data[elec_num][-1] != current_voltage:
+                                voltage_data[elec_num].append(current_voltage)
+                        
+                        # Store capacitance for this electrode
+                        key = (elec_num, elec_num)
+                        if key not in capacitance_data:
+                            capacitance_data[key] = []
+                        capacitance_data[key].append(cap_value)
+                        
+                    except (ValueError, IndexError):
+                        continue
             
             # Convert to numpy arrays
             result.frequency = np.array(frequencies) if frequencies else np.array([])
