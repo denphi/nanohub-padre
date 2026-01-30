@@ -1166,64 +1166,71 @@ class ACFileParser:
     def parse(self, content: str) -> ACData:
         """
         Parse AC file content.
-        Format typically: freq v1 v2 ... c11 c12 ... g11 g12 ...
+        
+        PADRE AC format:
+        # PADRE2.4E 10/24/94
+        v1 v2 v3 ...
+        Q electrode capacitance frequency voltage1 voltage2 ... 
         """
-        lines = [l.strip() for l in content.split('\n') if l.strip() and not l.startswith('#')]
+        lines = [l.strip() for l in content.split('\n') if l.strip()]
         if not lines:
             return ACData()
             
+        result = ACData()
+        frequencies = []
+        voltage_data = {}  # electrode -> list of voltages
+        capacitance_data = {}  # (electrode, electrode) -> list of capacitances
+        
         try:
-            # Parse numeric data
-            data_list = []
             for line in lines:
-                parts = line.split()
-                try:
-                    vals = [float(p) for p in parts]
-                    data_list.append(vals)
-                except ValueError:
+                # Skip header
+                if line.startswith('#'):
                     continue
-            
-            if not data_list:
-                return ACData()
-                
-            data = np.array(data_list)
-            
-            # Determine number of electrodes N
-            # Columns: 1 (freq) + N (voltages) + N*N (C) + N*N (G)
-            # T = 1 + N + 2N^2 => 2N^2 + N + (1-T) = 0
-            T = data.shape[1]
-            delta = 1 - 8 * (1 - T) # sqrt(1 - 4*2*(1-T)) = sqrt(1 - 8 + 8T) = sqrt(8T - 7)
-            
-            if delta < 0:
-                # Try simpler format without Conductance? T = 1 + N + N^2 ?
-                # N^2 + N + (1-T) = 0 => delta = 1 - 4(1-T) = 4T - 3
-                return ACData()
-                
-            N = int(round((-1 + np.sqrt(delta)) / 4))
-            
-            result = ACData()
-            result.frequency = data[:, 0]
-            
-            # Voltages
-            for i in range(N):
-                result.voltages[i+1] = data[:, 1+i]
-                
-            # Capacitance Cij
-            c_start = 1 + N
-            for i in range(N):
-                for j in range(N):
-                    idx = c_start + i*N + j
-                    if idx < T:
-                        result.capacitance[(i+1, j+1)] = data[:, idx]
                     
-            # Conductance Gij
-            g_start = c_start + N*N
-            for i in range(N):
-                for j in range(N):
-                    idx = g_start + i*N + j
-                    if idx < T:
-                        result.conductance[(i+1, j+1)] = data[:, idx]
+                # Q records contain the AC data
+                if line.startswith('Q'):
+                    parts = line.split()
+                    if len(parts) < 4:
+                        continue
                         
+                    # Format: Q electrode capacitance frequency v1 v2 v3 ...
+                    electrode = int(parts[1])
+                    capacitance = float(parts[2])
+                    frequency = float(parts[3])
+                    
+                    # Voltages start at index 4
+                    voltages = []
+                    for i in range(4, len(parts)):
+                        try:
+                            voltages.append(float(parts[i]))
+                        except ValueError:
+                            break
+                    
+                    # Store frequency (should be same for all records at same bias point)
+                    if frequency not in frequencies:
+                        frequencies.append(frequency)
+                    
+                    # Store voltage for this electrode
+                    if electrode not in voltage_data:
+                        voltage_data[electrode] = []
+                    if len(voltages) >= electrode:
+                        voltage_data[electrode].append(voltages[electrode - 1])
+                    
+                    # Store capacitance (diagonal element Cii)
+                    key = (electrode, electrode)
+                    if key not in capacitance_data:
+                        capacitance_data[key] = []
+                    capacitance_data[key].append(capacitance)
+            
+            # Convert to numpy arrays
+            result.frequency = np.array(frequencies) if frequencies else np.array([])
+            
+            for electrode, voltages in voltage_data.items():
+                result.voltages[electrode] = np.array(voltages)
+            
+            for key, capacitances in capacitance_data.items():
+                result.capacitance[key] = np.array(capacitances)
+                
             return result
             
         except Exception:
