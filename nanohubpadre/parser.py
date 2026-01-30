@@ -7,7 +7,9 @@ Extracts statistics, convergence data, and I-V characteristics from PADRE output
 import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
+
 from enum import Enum
+import numpy as np
 
 
 class ConvergenceStatus(Enum):
@@ -86,7 +88,7 @@ class SimulationResult:
             if electrode in bp.voltages and electrode in bp.total_current:
                 voltages.append(bp.voltages[electrode])
                 currents.append(bp.total_current[electrode])
-        return voltages, currents
+        return np.array(voltages), np.array(currents)
 
     def get_transfer_characteristic(self, gate_electrode: int,
                                      drain_electrode: int) -> Tuple[List[float], List[float]]:
@@ -111,7 +113,7 @@ class SimulationResult:
             if gate_electrode in bp.voltages and drain_electrode in bp.total_current:
                 vg.append(bp.voltages[gate_electrode])
                 id.append(abs(bp.total_current[drain_electrode]))
-        return vg, id
+        return np.array(vg), np.array(id)
 
     def summary(self) -> str:
         """Generate a human-readable summary of the simulation results."""
@@ -462,11 +464,11 @@ class IVData:
     num_electrodes: int = 0
     bias_points: List[Dict] = field(default_factory=list)
 
-    def get_voltages(self, electrode: int) -> List[float]:
+    def get_voltages(self, electrode: int) -> np.ndarray:
         """Get all voltages for a specific electrode."""
-        return [bp['voltages'].get(electrode, 0.0) for bp in self.bias_points]
+        return np.array([bp['voltages'].get(electrode, 0.0) for bp in self.bias_points])
 
-    def get_currents(self, electrode: int, component: str = 'total') -> List[float]:
+    def get_currents(self, electrode: int, component: str = 'total') -> np.ndarray:
         """
         Get currents for a specific electrode.
 
@@ -477,8 +479,8 @@ class IVData:
         component : str
             Current component: 'electron', 'hole', or 'total' (default)
         """
-        return [bp['currents'].get(electrode, {}).get(component, 0.0)
-                for bp in self.bias_points]
+        return np.array([bp['currents'].get(electrode, {}).get(component, 0.0)
+                for bp in self.bias_points])
 
     def get_iv_data(self, electrode: int) -> Tuple[List[float], List[float]]:
         """
@@ -516,7 +518,7 @@ class IVData:
             (gate_voltages, drain_currents) lists
         """
         vg = self.get_voltages(gate_electrode)
-        id_vals = [abs(i) for i in self.get_currents(drain_electrode, 'total')]
+        id_vals = np.abs(self.get_currents(drain_electrode, 'total'))
         return vg, id_vals
 
     def get_output_characteristic(self, drain_electrode: int) -> Tuple[List[float], List[float]]:
@@ -534,7 +536,7 @@ class IVData:
             (drain_voltages, drain_currents) lists
         """
         vd = self.get_voltages(drain_electrode)
-        id_vals = [abs(i) for i in self.get_currents(drain_electrode, 'total')]
+        id_vals = np.abs(self.get_currents(drain_electrode, 'total'))
         return vd, id_vals
 
     # -----------------------------------------------------------------------
@@ -555,7 +557,7 @@ class IVData:
 
         for elec in range(1, self.num_electrodes + 1):
             voltages = self.get_voltages(elec)
-            if voltages:
+            if len(voltages) > 0:
                 v_range = max(voltages) - min(voltages)
                 if v_range > max_range:
                     max_range = v_range
