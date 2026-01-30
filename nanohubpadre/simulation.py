@@ -79,8 +79,11 @@ class Simulation:
     def __init__(self, title: Optional[str] = None,
                  working_dir: Optional[str] = None):
         self.title = title
-        self.working_dir = working_dir or os.getcwd()
-
+        self.working_dir = (
+            working_dir
+            or os.environ.get("RESULTSDIR")
+            or os.getcwd()
+        )
         # Options
         self._options: Optional[Options] = None
 
