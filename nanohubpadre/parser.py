@@ -1169,12 +1169,14 @@ class ACFileParser:
         
         PADRE AC format:
         # PADRE2.4E 10/24/94
-        v1 v2 v3 ...                    <- voltage line
-        Q electrode capacitance frequency v1 v2 v3 ...
-        v1 v2 v3 ...                    <- next voltage line
-        Q electrode capacitance frequency v1 v2 v3 ...
+        Q  electrode  capacitance  frequency  v1  v2  v3 ...
+           continuation_line_with_more_data
+           continuation_line_with_more_data
+           electrode_num  values...
+           electrode_num  values...
+        Q  electrode  capacitance  frequency  v1  v2  v3 ...  (next bias point)
         """
-        lines = [l.strip() for l in content.split('\n') if l.strip()]
+        lines = [l.rstrip() for l in content.split('\n')]
         if not lines:
             return ACData()
             
@@ -1183,18 +1185,21 @@ class ACFileParser:
         voltage_data = {}  # electrode -> list of voltages
         capacitance_data = {}  # (electrode, electrode) -> list of capacitances
         
-        current_voltages = None  # Store voltages from the previous line
-        
         try:
-            for i, line in enumerate(lines):
-                # Skip header
-                if line.startswith('#'):
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+                
+                # Skip empty lines and header
+                if not line or line.startswith('#'):
+                    i += 1
                     continue
                     
                 # Q records contain the AC data
                 if line.startswith('Q'):
                     parts = line.split()
-                    if len(parts) < 4:
+                    if len(parts) < 5:
+                        i += 1
                         continue
                         
                     # Format: Q electrode capacitance frequency v1 v2 v3 ...
@@ -1202,36 +1207,31 @@ class ACFileParser:
                     capacitance = float(parts[2])
                     frequency = float(parts[3])
                     
+                    # Voltages start at index 4
+                    voltages = []
+                    for j in range(4, len(parts)):
+                        try:
+                            voltages.append(float(parts[j]))
+                        except ValueError:
+                            break
+                    
                     # Store frequency
                     if frequency not in frequencies:
                         frequencies.append(frequency)
                     
-                    # Store voltages for ALL electrodes from the voltage line
-                    if current_voltages:
-                        for elec_num in range(1, len(current_voltages) + 1):
-                            if elec_num not in voltage_data:
-                                voltage_data[elec_num] = []
-                            # Only append once per voltage line (check if we haven't added this voltage yet)
-                            if len(voltage_data[elec_num]) == 0 or voltage_data[elec_num][-1] != current_voltages[elec_num - 1]:
-                                voltage_data[elec_num].append(current_voltages[elec_num - 1])
+                    # Store voltages for all electrodes
+                    for elec_num in range(1, len(voltages) + 1):
+                        if elec_num not in voltage_data:
+                            voltage_data[elec_num] = []
+                        voltage_data[elec_num].append(voltages[elec_num - 1])
                     
-                    # Store capacitance for this specific electrode
+                    # Store capacitance for this electrode
                     key = (electrode, electrode)
                     if key not in capacitance_data:
                         capacitance_data[key] = []
                     capacitance_data[key].append(capacitance)
-                    
-                else:
-                    # This line might be a voltage line (numeric values)
-                    # Try to parse it as voltages
-                    try:
-                        parts = line.split()
-                        voltages = [float(p) for p in parts]
-                        if voltages:  # Successfully parsed as numbers
-                            current_voltages = voltages
-                    except ValueError:
-                        # Not a voltage line, skip
-                        pass
+                
+                i += 1
             
             # Convert to numpy arrays
             result.frequency = np.array(frequencies) if frequencies else np.array([])
@@ -1244,7 +1244,7 @@ class ACFileParser:
                 
             return result
             
-        except Exception:
+        except Exception as e:
             return ACData()
 
 
