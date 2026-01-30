@@ -42,6 +42,7 @@ def create_mos_capacitor(
     log_cv: bool = False,
     cv_file: str = "cv_data",
     log_bands_eq: bool = False,
+    log_bands_bias: bool = False,
     # Voltage sweep options
     vg_sweep: Optional[Tuple[float, float, float]] = None,
     ac_frequency: float = 1e6,
@@ -89,6 +90,8 @@ def create_mos_capacitor(
         Filename for C-V data (default: "cv_data")
     log_bands_eq : bool
         If True, log band diagrams at equilibrium (default: False)
+    log_bands_bias : bool
+        If True, log band diagrams at each bias point during voltage sweep (default: False)
     vg_sweep : tuple (v_start, v_end, v_step), optional
         Gate voltage sweep for C-V characteristic with AC analysis.
         Example: (-2.0, 2.0, 0.2) sweeps from -2V to 2V
@@ -191,8 +194,18 @@ def create_mos_capacitor(
                 electrode=1,
                 ac_analysis=True,
                 frequency=ac_frequency,
-                outfile="cv"
+                outfile="cv",
+                save=1 if log_bands_bias else None  # Save every point if logging bands
             ))
+            
+            # Log band diagrams at each bias point if requested
+            if log_bands_bias:
+                x_mid = device_width / 2
+                sim.log_band_diagram(
+                    outfile_prefix="bias",
+                    x_start=x_mid, x_end=x_mid,
+                    y_start=0.0, y_end=total_thickness
+                )
 
     return sim
 
