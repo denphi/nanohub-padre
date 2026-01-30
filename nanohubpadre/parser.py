@@ -870,35 +870,55 @@ class IVFileParser:
         """
         Parse a single Q-record.
 
-        PADRE ivfile format for N electrodes (20 values for 4 electrodes):
-        Line 1 (values 0-4):   V1, V2, V3, V4, V_extra
-        Line 2 (values 5-9):   V_extra, V_swept_copy, V_extra, I1_electron, I2_electron
-        Line 3 (values 10-14): I3_electron, I4_electron, I1_hole, I2_hole, I3_hole
-        Line 4 (values 15-19): I4_hole, Q1, Q2, Q3, Q4
+        PADRE ivfile format varies by number of electrodes. General structure:
+        - First N values: Voltages V1, V2, ..., VN
+        - Following values: Metadata and currents
 
-        Based on PADRE 2.4E format analysis:
-        - Indices 0-3: Voltages V1-V4
-        - Indices 8-11: Electron currents I1e-I4e (note: starts at 8, not 4)
-        - Indices 12-15: Hole currents I1h-I4h
+        For 2 electrodes (10 values total, 5 values per line x 2 lines):
+        Line 1: V1, V2, extra, extra, extra
+        Line 2: I1_e, I2_e, I1_h, I2_h, extra
+
+        For 4 electrodes (20 values total, 5 values per line x 4 lines):
+        Line 1: V1, V2, V3, V4, extra
+        Line 2: extra, extra, extra, I1_e, I2_e
+        Line 3: I3_e, I4_e, I1_h, I2_h, I3_h
+        Line 4: I4_h, Q1, Q2, Q3, Q4
         """
         try:
-            # Collect all values from the 4 data lines
+            # Collect all values from the data lines following the Q marker
             values = []
-            for offset in range(1, 5):
+            offset = 1
+            while start + offset < len(lines):
                 line = lines[start + offset].strip()
-                parts = line.split()
-                for part in parts:
-                    try:
-                        values.append(float(part))
-                    except ValueError:
-                        values.append(0.0)
-
-            if len(values) < 20:
-                return None
+                # Stop if we hit another Q-record or empty line after getting some data
+                if line.startswith('Q') or (not line and len(values) >= 10):
+                    break
+                if line:
+                    parts = line.split()
+                    for part in parts:
+                        try:
+                            values.append(float(part))
+                        except ValueError:
+                            values.append(0.0)
+                offset += 1
+                # Safety limit - don't read more than 5 lines
+                if offset > 5:
+                    break
 
             num_elec = self.data.num_electrodes
             if num_elec == 0:
-                num_elec = 4  # Default assumption
+                # Try to infer from number of values
+                if len(values) >= 20:
+                    num_elec = 4
+                elif len(values) >= 10:
+                    num_elec = 2
+                else:
+                    num_elec = 2  # Default
+
+            # Minimum values needed: voltages + electron currents + hole currents
+            min_values = num_elec + 2 * num_elec
+            if len(values) < min_values:
+                return None
 
             bias_point = {
                 'voltages': {},
@@ -911,15 +931,24 @@ class IVFileParser:
                 if idx < len(values):
                     bias_point['voltages'][elec] = values[idx]
 
-            # For PADRE 2.4E format with 4 electrodes:
-            # Electron currents at indices 8, 9, 10, 11 (I1e, I2e, I3e, I4e)
-            # Hole currents at indices 12, 13, 14, 15 (I1h, I2h, I3h, I4h)
-            # These are actually flux/displacement values, but we treat as currents
+            # Current indices depend on number of electrodes
+            # For 2-electrode devices: currents start right after voltages
+            # For 4-electrode devices: currents start at index 8
+            if num_elec == 2:
+                # 2-electrode format: V1, V2, ..., I1_e, I2_e, I1_h, I2_h, ...
+                e_base = num_elec + 3  # Skip voltages and 3 extra values
+                h_base = e_base + num_elec
 
-            # Calculate electron current base index
-            # Pattern: after voltages and some metadata, currents start
-            e_base = 8  # Based on observed PADRE 2.4E format
-            h_base = 12
+                # Alternative layout: check if values at expected positions are reasonable currents
+                # (typically < 1 amp for device simulation)
+                if e_base < len(values) and abs(values[e_base]) > 1:
+                    # Try direct after voltages
+                    e_base = num_elec
+                    h_base = e_base + num_elec
+            else:
+                # 4-electrode format
+                e_base = 8
+                h_base = 12
 
             for elec in range(1, num_elec + 1):
                 elec_currents = {}
@@ -937,11 +966,10 @@ class IVFileParser:
                 # Total current (electron + hole)
                 if 'electron' in elec_currents and 'hole' in elec_currents:
                     elec_currents['total'] = elec_currents['electron'] + elec_currents['hole']
-                else:
-                    # Try to get from a later position
-                    t_idx = 3 * num_elec + (elec - 1)
-                    if t_idx < len(values):
-                        elec_currents['total'] = values[t_idx]
+                elif 'electron' in elec_currents:
+                    elec_currents['total'] = elec_currents['electron']
+                elif 'hole' in elec_currents:
+                    elec_currents['total'] = elec_currents['hole']
 
                 bias_point['currents'][elec] = elec_currents
 
