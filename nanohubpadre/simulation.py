@@ -1715,7 +1715,7 @@ class Simulation:
         if use_timestamp:
             # Generate hash from deck content
             deck_content = self.generate_deck()
-            content_hash = hashlib.md5(deck_content.encode()).hexdigest()[:8]
+            content_hash = hashlib.md5(deck_content.encode()).hexdigest()
             dir_name = f"{name}_{content_hash}"
         else:
             dir_name = name
