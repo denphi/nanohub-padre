@@ -1794,6 +1794,49 @@ class Simulation:
 
         return results
 
+    # -----------------------------------------------------------------------
+    # Plotting helpers
+    # -----------------------------------------------------------------------
+
+    def plot_transfer(self, gate_electrode: int, drain_electrode: int, **kwargs):
+        """Plot transfer characteristic from simulation results."""
+        if self._outputs is None:
+            self._load_outputs()
+        
+        # Try to find an I-V output
+        iv_data = self.outputs.get_iv_data()
+        if not iv_data:
+            raise ValueError("No I-V data found in simulation outputs.")
+        
+        # Use the first available I-V dataset
+        # In most cases there's only one relevant for transfer char
+        first_iv = list(iv_data.values())[0]
+        return first_iv.plot_transfer(gate_electrode, drain_electrode, **kwargs)
+
+    def plot_output(self, drain_electrode: int, **kwargs):
+        """Plot output characteristic from simulation results."""
+        if self._outputs is None:
+            self._load_outputs()
+            
+        iv_data = self.outputs.get_iv_data()
+        if not iv_data:
+            raise ValueError("No I-V data found in simulation outputs.")
+            
+        first_iv = list(iv_data.values())[0]
+        return first_iv.plot_output(drain_electrode, **kwargs)
+
+    def plot_gummel(self, base_electrode: int = 2, collector_electrode: int = 3, **kwargs):
+        """Plot Gummel characteristic from simulation results."""
+        if self._outputs is None:
+            self._load_outputs()
+            
+        iv_data = self.outputs.get_iv_data()
+        if not iv_data:
+            raise ValueError("No I-V data found in simulation outputs.")
+            
+        first_iv = list(iv_data.values())[0]
+        return first_iv.plot_gummel(base_electrode, collector_electrode, **kwargs)
+
     def __repr__(self) -> str:
         parts = []
         if self.title:

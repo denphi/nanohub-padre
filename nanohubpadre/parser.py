@@ -539,6 +539,28 @@ class IVData:
         id_vals = np.abs(self.get_currents(drain_electrode, 'total'))
         return vd, id_vals
 
+    def get_gummel_data(self, base_electrode: int, collector_electrode: int) -> Tuple[List[float], List[float]]:
+        """
+        Extract Gummel plot data (Vbe vs Ic, Ib).
+
+        Parameters
+        ----------
+        base_electrode : int
+            Base electrode number
+        collector_electrode : int
+            Collector electrode number
+
+        Returns
+        -------
+        tuple
+            (base_voltages, current_values) lists
+            If base_electrode == collector_electrode, returns (Vbe, Ib)
+            If base_electrode != collector_electrode, returns (Vbe, Ic)
+        """
+        vbe = self.get_voltages(base_electrode)
+        i_val = np.abs(self.get_currents(collector_electrode, 'total'))
+        return vbe, i_val
+
     # -----------------------------------------------------------------------
     # Plotting methods
     # -----------------------------------------------------------------------
@@ -794,6 +816,83 @@ class IVData:
         else:
             return _plot_multi_iv_plotly(
                 data_series,
+                title=title,
+                log_scale=log_scale,
+                show=show,
+                **kwargs
+            )
+
+    def plot_gummel(
+        self,
+        base_electrode: int = 2,
+        collector_electrode: int = 3,
+        emitter_electrode: int = 1,
+        title: str = "Gummel Plot",
+        log_scale: bool = True,
+        backend: Optional[str] = None,
+        show: bool = True,
+        **kwargs
+    ) -> Any:
+        """
+        Plot Gummel characteristics (Ic, Ib vs Vbe).
+
+        Parameters
+        ----------
+        base_electrode : int
+            Base electrode number (default: 2)
+        collector_electrode : int
+            Collector electrode number (default: 3)
+        emitter_electrode : int
+            Emitter electrode number (default: 1)
+        title : str
+            Plot title
+        log_scale : bool
+            Use log scale for current (default True)
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        **kwargs
+            Additional plotting arguments
+
+        Returns
+        -------
+        Any
+            Plot object
+        """
+        from .visualization import (
+            _get_default_backend,
+            _plot_multi_iv_matplotlib,
+            _plot_multi_iv_plotly
+        )
+        
+        # Get raw data using the new get_gummel_data method
+        vbe, ic = self.get_gummel_data(base_electrode, collector_electrode)
+        _, ib = self.get_gummel_data(base_electrode, base_electrode)
+
+        if backend is None:
+            backend = _get_default_backend()
+
+        data_series = [
+            (vbe, ic, f"Ic (Collector)"),
+            (vbe, ib, f"Ib (Base)")
+        ]
+
+        if backend == 'matplotlib':
+            return _plot_multi_iv_matplotlib(
+                data_series,
+                xlabel="Base-Emitter Voltage Vbe (V)",
+                ylabel="Current (A)",
+                title=title,
+                log_scale=log_scale,
+                show=show,
+                **kwargs
+            )
+        else:
+            return _plot_multi_iv_plotly(
+                data_series,
+                xlabel="Base-Emitter Voltage Vbe (V)",
+                ylabel="Current (A)",
                 title=title,
                 log_scale=log_scale,
                 show=show,
