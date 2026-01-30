@@ -38,6 +38,8 @@ def create_mosfet(
     # Output logging options
     log_iv: bool = False,
     iv_file: str = "idvg",
+    log_bands_eq: bool = False,
+    log_bands_bias: bool = False,
     # Voltage sweep options
     vgs_sweep: Optional[Tuple[float, float, float]] = None,
     vds: float = 0.0,
@@ -86,6 +88,10 @@ def create_mosfet(
         If True, add I-V logging (default: False)
     iv_file : str
         Filename for I-V log (default: "idvg")
+    log_bands_eq : bool
+        If True, log band diagrams at equilibrium (default: False)
+    log_bands_bias : bool
+        If True, log band diagrams during voltage sweeps (default: False)
     vgs_sweep : tuple (v_start, v_end, v_step), optional
         Gate voltage sweep for transfer characteristic (Id-Vg).
         Example: (0.0, 1.5, 0.1) sweeps Vg from 0V to 1.5V in 0.1V steps
@@ -194,9 +200,18 @@ def create_mosfet(
         sim.add_log(Log(ivfile=iv_file))
 
     # Only add solve commands if sweeps are specified
-    if vgs_sweep is not None or vds_sweep is not None:
+    if vgs_sweep is not None or vds_sweep is not None or log_bands_eq:
         # Always start with equilibrium solve
         sim.add_solve(Solve(initial=True, outfile="eq"))
+
+        if log_bands_eq:
+            # Vertical cut through middle of channel
+            x_mid = device_width / 2.0
+            sim.log_band_diagram(
+                outfile_prefix="eq",
+                x_start=x_mid, y_start=0.0,
+                x_end=x_mid, y_end=total_height
+            )
 
         # Transfer characteristic (Id-Vg at fixed Vd)
         if vgs_sweep is not None:
@@ -217,6 +232,15 @@ def create_mosfet(
                 outfile="idvg"
             ))
 
+            if log_bands_bias:
+                x_mid = device_width / 2.0
+                sim.log_band_diagram(
+                    outfile_prefix="idvg",
+                    x_start=x_mid, y_start=0.0,
+                    x_end=x_mid, y_end=total_height,
+                    include_qf=True
+                )
+
         # Output characteristic (Id-Vd at fixed Vg)
         if vds_sweep is not None:
             v_start, v_end, v_step = vds_sweep
@@ -235,6 +259,15 @@ def create_mosfet(
                 electrode=2,
                 outfile="idvd"
             ))
+
+            if log_bands_bias:
+                x_mid = device_width / 2.0
+                sim.log_band_diagram(
+                    outfile_prefix="idvd",
+                    x_start=x_mid, y_start=0.0,
+                    x_end=x_mid, y_end=total_height,
+                    include_qf=True
+                )
 
     return sim
 
