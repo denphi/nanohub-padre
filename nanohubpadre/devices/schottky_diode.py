@@ -122,7 +122,16 @@ def create_schottky_diode(
     sim.mesh.add_x_mesh(1, 0)
     sim.mesh.add_x_mesh(nx, length)
     sim.mesh.add_y_mesh(1, 0)
-    sim.mesh.add_y_mesh(int(ny * 0.3), width * 0.1, ratio=0.8)  # Fine mesh near surface
+    
+    # Ensure intermediate point is valid (between 1 and ny)
+    y_idx = int(ny * 0.3)
+    if y_idx < 2:
+        y_idx = max(2, ny - 1)
+    
+    # Only add if we have space (ny >= 3)
+    if ny >= 3 and y_idx < ny:
+        sim.mesh.add_y_mesh(y_idx, width * 0.1, ratio=0.8)  # Fine mesh near surface
+        
     sim.mesh.add_y_mesh(ny, width, ratio=1.2)
 
     # Region
