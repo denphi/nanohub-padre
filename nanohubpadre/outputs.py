@@ -17,6 +17,7 @@ class OutputType(Enum):
     MESH = "mesh"
     SOLUTION = "solution"
     IV_DATA = "iv_data"
+    AC_DATA = "ac_data"
     PLOT_1D = "plot_1d"
     PLOT_2D = "plot_2d"
 
@@ -320,6 +321,15 @@ class OutputManager:
                 result[name] = entry.data
         return result
 
+    def get_ac_data(self) -> Dict[str, Any]:
+        """Get all AC data outputs as a dictionary."""
+        result = {}
+        for name in self._by_type.get(OutputType.AC_DATA, []):
+            entry = self._entries[name]
+            if entry.data is not None:
+                result[name] = entry.data
+        return result
+
     def load_all(self) -> None:
         """Load/parse all output files."""
         for name, entry in self._entries.items():
@@ -337,6 +347,8 @@ class OutputManager:
             entry.data = self._parse_plot1d(file_path, entry)
         elif entry.output_type == OutputType.IV_DATA:
             entry.data = self._parse_iv_file(file_path)
+        elif entry.output_type == OutputType.AC_DATA:
+            entry.data = self._parse_ac_file(file_path)
         elif entry.output_type == OutputType.SOLUTION:
             entry.data = self._parse_solution(file_path)
 
@@ -421,6 +433,14 @@ class OutputManager:
         from .parser import parse_iv_file
         try:
             return parse_iv_file(file_path)
+        except Exception:
+            return None
+
+    def _parse_ac_file(self, file_path: str) -> Any:
+        """Parse a PADRE AC log file."""
+        from .parser import parse_ac_file
+        try:
+            return parse_ac_file(file_path)
         except Exception:
             return None
 

@@ -25,7 +25,7 @@ from .regrid import Regrid, Adapt
 from .plotting import Plot1D, Plot2D, Contour, Vector
 from .options import Options, Load
 from .plot3d import Plot3D
-from .parser import parse_padre_output, SimulationResult, parse_iv_file, IVData
+from .parser import parse_padre_output, SimulationResult, parse_iv_file, IVData, parse_ac_file, ACData
 from .solution import parse_solution_file, load_solution_series, SolutionData
 from .outputs import OutputManager, OutputType, get_plot1d_variable, PlotData
 
@@ -222,6 +222,12 @@ class Simulation:
                     self._outputs.register(
                         cmd.ivfile,
                         OutputType.IV_DATA,
+                        command=cmd
+                    )
+                if hasattr(cmd, 'acfile') and cmd.acfile:
+                    self._outputs.register(
+                        cmd.acfile,
+                        OutputType.AC_DATA,
                         command=cmd
                     )
 
@@ -1836,6 +1842,34 @@ class Simulation:
             
         first_iv = list(iv_data.values())[0]
         return first_iv.plot_gummel(base_electrode, collector_electrode, **kwargs)
+
+    def get_cv_data(self) -> Optional[ACData]:
+        """
+        Get C-V data from simulation outputs.
+        
+        Returns
+        -------
+        ACData or None
+            Parsed AC analysis data
+        """
+        if self._outputs is None:
+            self._load_outputs()
+            
+        # Try to find AC data
+        # Note: OutputManager needs to support AC_DATA retrieval
+        if hasattr(self.outputs, 'get_ac_data'):
+            ac_data_map = self.outputs.get_ac_data()
+            if ac_data_map:
+                return list(ac_data_map.values())[0]
+        
+        # Fallback: check raw files if output manager support is incomplete
+        for cmd in self._commands:
+            if isinstance(cmd, Log) and hasattr(cmd, 'acfile') and cmd.acfile:
+                path = os.path.join(self.working_dir, cmd.acfile)
+                if os.path.exists(path):
+                    return parse_ac_file(path)
+                    
+        return None
 
     def __repr__(self) -> str:
         parts = []

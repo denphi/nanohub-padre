@@ -1122,3 +1122,117 @@ def parse_iv_content(content: str) -> IVData:
     """
     parser = IVFileParser()
     return parser.parse(content)
+
+
+@dataclass
+class ACData:
+    """
+    Parsed AC analysis data from PADRE acfile.
+    """
+    frequency: np.ndarray = field(default_factory=lambda: np.array([]))
+    voltages: Dict[int, np.ndarray] = field(default_factory=dict)
+    capacitance: Dict[Tuple[int, int], np.ndarray] = field(default_factory=dict)
+    conductance: Dict[Tuple[int, int], np.ndarray] = field(default_factory=dict)
+
+    def get_cv_data(self, gate_electrode: int = 1, bulk_electrode: int = 2) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Extract C-V characteristic (Cgg vs Vg).
+        
+        Assumes data is for a single frequency.
+        """
+        if gate_electrode in self.voltages:
+            vg = self.voltages[gate_electrode]
+        elif len(self.voltages) > 0:
+            vg = list(self.voltages.values())[0]
+        else:
+            return np.array([]), np.array([])
+            
+        # Try to get C(gate, gate) - typically input capacitance
+        key = (gate_electrode, gate_electrode)
+        if key in self.capacitance:
+            cgg = self.capacitance[key]
+        elif len(self.capacitance) > 0:
+            # First available capacitance if keys fail
+            cgg = list(self.capacitance.values())[0]
+        else:
+            cgg = np.zeros_like(vg)
+
+        return vg, cgg
+
+
+class ACFileParser:
+    """Parser for PADRE AC log files."""
+    
+    def parse(self, content: str) -> ACData:
+        """
+        Parse AC file content.
+        Format typically: freq v1 v2 ... c11 c12 ... g11 g12 ...
+        """
+        lines = [l.strip() for l in content.split('\n') if l.strip() and not l.startswith('#')]
+        if not lines:
+            return ACData()
+            
+        try:
+            # Parse numeric data
+            data_list = []
+            for line in lines:
+                parts = line.split()
+                try:
+                    vals = [float(p) for p in parts]
+                    data_list.append(vals)
+                except ValueError:
+                    continue
+            
+            if not data_list:
+                return ACData()
+                
+            data = np.array(data_list)
+            
+            # Determine number of electrodes N
+            # Columns: 1 (freq) + N (voltages) + N*N (C) + N*N (G)
+            # T = 1 + N + 2N^2 => 2N^2 + N + (1-T) = 0
+            T = data.shape[1]
+            delta = 1 - 8 * (1 - T) # sqrt(1 - 4*2*(1-T)) = sqrt(1 - 8 + 8T) = sqrt(8T - 7)
+            
+            if delta < 0:
+                # Try simpler format without Conductance? T = 1 + N + N^2 ?
+                # N^2 + N + (1-T) = 0 => delta = 1 - 4(1-T) = 4T - 3
+                return ACData()
+                
+            N = int(round((-1 + np.sqrt(delta)) / 4))
+            
+            result = ACData()
+            result.frequency = data[:, 0]
+            
+            # Voltages
+            for i in range(N):
+                result.voltages[i+1] = data[:, 1+i]
+                
+            # Capacitance Cij
+            c_start = 1 + N
+            for i in range(N):
+                for j in range(N):
+                    idx = c_start + i*N + j
+                    if idx < T:
+                        result.capacitance[(i+1, j+1)] = data[:, idx]
+                    
+            # Conductance Gij
+            g_start = c_start + N*N
+            for i in range(N):
+                for j in range(N):
+                    idx = g_start + i*N + j
+                    if idx < T:
+                        result.conductance[(i+1, j+1)] = data[:, idx]
+                        
+            return result
+            
+        except Exception:
+            return ACData()
+
+
+def parse_ac_file(filename: str) -> ACData:
+    """Parse a PADRE AC log file."""
+    with open(filename, 'r') as f:
+        content = f.read()
+    parser = ACFileParser()
+    return parser.parse(content)
