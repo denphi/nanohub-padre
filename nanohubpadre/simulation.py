@@ -1729,7 +1729,7 @@ class Simulation:
             warnings.warn(
                 f"Output directory '{output_dir}' already exists. "
                 f"Reusing existing simulation results. "
-                f"If you want to re-run, delete the directory or change simulation parameters.",
+                f"If you want to re-run, add force_rerun=True to run()",
                 UserWarning
             )
         else:
