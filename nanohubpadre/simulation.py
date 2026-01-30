@@ -784,7 +784,8 @@ class Simulation:
             use_stdin: bool = False,
             verbose: bool = False,
             output_dir: Optional[str] = None,
-            auto_output_dir: bool = True) -> subprocess.CompletedProcess:
+            auto_output_dir: bool = True,
+            force_rerun: bool = False) -> subprocess.CompletedProcess:
         """
         Run the PADRE simulation.
 
@@ -809,9 +810,12 @@ class Simulation:
             subdirectory in working_dir and runs the simulation there.
             This prevents outputs from different runs from being mixed.
         auto_output_dir : bool
-            If True (default), automatically creates a timestamped output directory.
+            If True (default), automatically creates a hash-based output directory.
             Equivalent to calling create_output_dir() before run().
             Ignored if output_dir is provided. Set to False to run in current working_dir.
+        force_rerun : bool
+            If True, deletes existing cached directory and forces a fresh simulation.
+            Default is False (reuse cached results if available).
 
         Returns
         -------
@@ -836,6 +840,13 @@ class Simulation:
             self.create_output_dir(name=output_dir, use_timestamp=False)
         elif auto_output_dir:
             self.create_output_dir()
+            
+        # Force rerun: delete cached directory if it exists
+        if force_rerun and os.path.exists(self.working_dir):
+            import shutil
+            shutil.rmtree(self.working_dir)
+            os.makedirs(self.working_dir, exist_ok=True)
+            print(f"Forcing fresh simulation: deleted cached directory '{self.working_dir}'")
         # Write deck to file
         if input_file is None:
             # Use short filename to avoid PADRE's filename length limit
@@ -1667,8 +1678,8 @@ class Simulation:
             Base name for the output directory. If None, uses simulation title
             or 'run'.
         use_timestamp : bool
-            If True, appends a timestamp to make the directory name unique.
-            Format: name_YYYYMMDD_HHMMSS
+            If True (default), uses content hash for directory name to enable
+            caching. If False, uses just the name without hash.
 
         Returns
         -------
@@ -1689,7 +1700,7 @@ class Simulation:
         >>> # Now run() will save outputs to this directory
         >>> result = sim.run()
         """
-        import datetime
+        import hashlib
 
         # Determine base name
         if name is None:
@@ -1700,16 +1711,29 @@ class Simulation:
             else:
                 name = 'run'
 
-        # Add timestamp if requested
+        # Add content hash if requested (default)
         if use_timestamp:
-            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-            dir_name = f"{name}_{timestamp}"
+            # Generate hash from deck content
+            deck_content = self.generate_deck()
+            content_hash = hashlib.md5(deck_content.encode()).hexdigest()[:8]
+            dir_name = f"{name}_{content_hash}"
         else:
             dir_name = name
 
         # Create the directory
         output_dir = os.path.join(self.working_dir, dir_name)
-        os.makedirs(output_dir, exist_ok=True)
+        
+        # Check if directory already exists (cached results)
+        if os.path.exists(output_dir):
+            import warnings
+            warnings.warn(
+                f"Output directory '{output_dir}' already exists. "
+                f"Reusing existing simulation results. "
+                f"If you want to re-run, delete the directory or change simulation parameters.",
+                UserWarning
+            )
+        else:
+            os.makedirs(output_dir, exist_ok=True)
 
         # Update working_dir to point to new directory
         self.working_dir = output_dir
