@@ -522,6 +522,54 @@ class Simulation:
 
         return self
 
+    def log_physics(self, outfile_suffix: str = "",
+                    x_start: float = 0.0, y_start: float = 0.0,
+                    x_end: Optional[float] = None, y_end: Optional[float] = None) -> "Simulation":
+        """
+        Add Plot1D commands to log a full set of internal physics profiles:
+        recombination rate, electric field, electron density, hole density,
+        and net carrier density (n − p).
+
+        Parameters
+        ----------
+        outfile_suffix : str
+            Suffix appended to each output filename.
+            Files created: recomb_{suffix}, efield_{suffix}, n_{suffix},
+            p_{suffix}, netcar_{suffix}.  When empty the suffix is omitted.
+        x_start, y_start : float
+            Start point of the line cut
+        x_end, y_end : float, optional
+            End point of the line cut
+
+        Returns
+        -------
+        Simulation
+            Self for method chaining
+
+        Example
+        -------
+        >>> sim.add_solve(Solve(initial=True))
+        >>> sim.log_physics("eq")          # logs recomb_eq, efield_eq, …
+        >>> sim.add_solve(Solve(...))      # single bias step
+        >>> sim.log_physics("v0p2")        # logs recomb_v0p2, …
+        """
+        if x_end is None:
+            x_end = x_start
+        if y_end is None:
+            y_end = 2.0
+
+        sep  = "_" if outfile_suffix else ""
+        common = dict(x_start=x_start, y_start=y_start,
+                      x_end=x_end, y_end=y_end, ascii=True)
+
+        self._commands.append(Plot1D(recomb=True,      outfile=f"recomb{sep}{outfile_suffix}",  **common))
+        self._commands.append(Plot1D(e_field=True,     outfile=f"efield{sep}{outfile_suffix}",  **common))
+        self._commands.append(Plot1D(electrons=True,   outfile=f"n{sep}{outfile_suffix}",       **common))
+        self._commands.append(Plot1D(holes=True,       outfile=f"p{sep}{outfile_suffix}",       **common))
+        self._commands.append(Plot1D(net_carrier=True, outfile=f"netcar{sep}{outfile_suffix}",  **common))
+
+        return self
+
     # -----------------------------------------------------------------------
     # Voltage sweep helpers
     # -----------------------------------------------------------------------

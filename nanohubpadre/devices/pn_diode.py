@@ -2,7 +2,7 @@
 PN Junction Diode factory function.
 """
 
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from ..simulation import Simulation
 from ..mesh import Mesh
 from ..region import Region
@@ -48,6 +48,8 @@ def create_pn_diode(
     forward_sweep: Optional[Tuple[float, float, float]] = None,
     reverse_sweep: Optional[Tuple[float, float, float]] = None,
     sweep_electrode: int = 2,
+    # Physics-profile logging
+    log_physics_at: Optional[List[float]] = None,
 ) -> Simulation:
     """
     Create a PN junction diode simulation.
@@ -105,6 +107,14 @@ def create_pn_diode(
         Example: (0.0, -5.0, -0.5) sweeps from 0V to -5V in 0.5V steps
     sweep_electrode : int
         Electrode number to apply voltage sweeps (default: 2)
+    log_physics_at : list of float, optional
+        Bias voltages (V) at which to capture physics profiles along the
+        device: recombination rate, electric field, electron density, hole
+        density, and net carrier density.  When provided the forward sweep
+        is replaced by a step-by-step ramp that inserts Plot1D commands
+        between each bias point.  The list must start at 0.0 (equilibrium
+        is always logged first).
+        Example: [0.0, 0.2, 0.4, 0.6]
 
     Returns
     -------
@@ -179,8 +189,9 @@ def create_pn_diode(
     # Line cut position for band diagrams (horizontal through middle of device)
     y_cut = width / 2.0
 
-    # Only add solve commands if sweeps are specified
-    if forward_sweep is not None or reverse_sweep is not None or log_bands_eq:
+    # Only add solve commands if sweeps or logging are specified
+    if (forward_sweep is not None or reverse_sweep is not None
+            or log_bands_eq or log_physics_at is not None):
         # Always start with equilibrium solve
         sim.add_solve(Solve(initial=True, outfile="eq"))
 
@@ -192,8 +203,33 @@ def create_pn_diode(
                 x_end=length, y_end=y_cut
             )
 
-        # Forward bias sweep
-        if forward_sweep is not None:
+        # Physics-profile stepping: step one bias at a time so that
+        # Plot1D commands fire at each requested voltage.
+        # When active this replaces forward_sweep.
+        if log_physics_at is not None:
+            _cut = dict(x_start=0.0, y_start=y_cut,
+                        x_end=length, y_end=y_cut)
+
+            # Equilibrium snapshot
+            sim.log_physics("eq", **_cut)
+
+            # Step through remaining bias points one at a time
+            v_prev = 0.0
+            for v in log_physics_at[1:]:
+                dv  = v - v_prev
+                tag = f"v{v:.1f}".replace(".", "p")   # e.g. "v0p2"
+                solve_kwargs = dict(project=True, vstep=dv, nsteps=1,
+                                    electrode=sweep_electrode, outfile=f"sol_{tag}")
+                if sweep_electrode == 1:
+                    solve_kwargs["v1"] = v_prev
+                else:
+                    solve_kwargs["v2"] = v_prev
+                sim.add_solve(Solve(**solve_kwargs))
+                sim.log_physics(tag, **_cut)
+                v_prev = v
+
+        # Forward bias sweep (skipped when log_physics_at is used)
+        elif forward_sweep is not None:
             v_start, v_end, v_step = forward_sweep
             nsteps = int(abs(v_end - v_start) / abs(v_step))
             sim.add_solve(Solve(
