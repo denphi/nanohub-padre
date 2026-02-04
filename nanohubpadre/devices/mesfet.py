@@ -128,13 +128,24 @@ def create_mesfet(
     gate_start = source_width + (device_width - source_width - drain_width - gate_length) / 2
     gate_end = gate_start + gate_length
 
-    # Mesh
+    # Mesh — deduplicate x-positions that coincide with default geometry
     sim.mesh = Mesh(nx=nx, ny=ny)
+    drain_start = device_width - drain_width
+    x_positions = [
+        (source_width,  0.8),
+        (gate_start,    0.8),
+        (gate_end,      0.8),
+        (drain_start,   0.8),
+    ]
+    # Remove near-duplicates (floating-point safe) while preserving order
+    unique_x = []
+    for pos, ratio in x_positions:
+        if not any(abs(pos - p) < 1e-12 for p, _ in unique_x):
+            unique_x.append((pos, ratio))
+
     sim.mesh.add_x_mesh(1, 0, ratio=1.1)
-    sim.mesh.add_x_mesh(int(nx * source_width / device_width), source_width, ratio=0.8)
-    sim.mesh.add_x_mesh(int(nx * gate_start / device_width), gate_start, ratio=0.8)
-    sim.mesh.add_x_mesh(int(nx * gate_end / device_width), gate_end, ratio=0.8)
-    sim.mesh.add_x_mesh(int(nx * (device_width - drain_width) / device_width), device_width - drain_width, ratio=0.8)
+    for pos, ratio in unique_x:
+        sim.mesh.add_x_mesh(int(nx * pos / device_width), pos, ratio=ratio)
     sim.mesh.add_x_mesh(nx, device_width, ratio=1.1)
     sim.mesh.add_y_mesh(1, 0.0, ratio=1.1)
     sim.mesh.add_y_mesh(int(ny * substrate_depth / total_depth), substrate_depth, ratio=0.9)
@@ -144,7 +155,7 @@ def create_mesfet(
     nx_src = int(nx * source_width / device_width)
     nx_gate_start = int(nx * gate_start / device_width)
     nx_gate_end = int(nx * gate_end / device_width)
-    nx_drain_start = int(nx * (device_width - drain_width) / device_width)
+    nx_drain_start = int(nx * drain_start / device_width)
 
     # Regions
     sim.add_region(Region(1, ix_low=1, ix_high=nx, iy_low=1, iy_high=ny_sub, silicon=True))
@@ -157,9 +168,8 @@ def create_mesfet(
     sim.add_electrode(Electrode(2, ix_low=nx_drain_start, ix_high=nx, iy_low=ny, iy_high=ny))  # Drain
     sim.add_electrode(Electrode(3, ix_low=nx_gate_start, ix_high=nx_gate_end, iy_low=ny, iy_high=ny))  # Gate
 
-    # Doping
-    sub_type = not is_n_type  # substrate opposite to channel
-    sim.add_doping(Doping(region=1, p_type=sub_type, n_type=not sub_type,
+    # Doping — substrate is opposite type to the channel
+    sim.add_doping(Doping(region=1, p_type=is_n_type, n_type=not is_n_type,
                           uniform=True, concentration=substrate_doping))
     sim.add_doping(Doping(region=2, n_type=is_n_type, p_type=not is_n_type,
                           uniform=True, concentration=contact_doping))
