@@ -836,17 +836,28 @@ class Simulation:
         >>> result = sim.run(auto_output_dir=False)
         """
         # Create output directory if requested
+        self._cache_dir_existed = False
         if output_dir is not None:
             self.create_output_dir(name=output_dir, use_timestamp=False)
         elif auto_output_dir:
             self.create_output_dir()
-            
+
         # Force rerun: delete cached directory if it exists
         if force_rerun and os.path.exists(self.working_dir):
             import shutil
             shutil.rmtree(self.working_dir)
             os.makedirs(self.working_dir, exist_ok=True)
+            self._cache_dir_existed = False
             print(f"Forcing fresh simulation: deleted cached directory '{self.working_dir}'")
+
+        # Cache hit: directory pre-existed and all expected outputs are present
+        if self._cache_dir_existed and not force_rerun:
+            expected = self.list_outputs(include_existing=True)
+            if expected['all'] and not expected['missing']:
+                print(f"Using cached results from '{self.working_dir}'")
+                self._load_outputs()
+                return subprocess.CompletedProcess(args=[], returncode=0,
+                                                   stdout="", stderr="")
         # Write deck to file
         if input_file is None:
             # Use short filename to avoid PADRE's filename length limit
@@ -1689,11 +1700,11 @@ class Simulation:
         Example
         -------
         >>> sim = create_pn_diode()
-        >>> # Create timestamped output directory
+        >>> # Create hash-based output directory (default)
         >>> output_dir = sim.create_output_dir()
-        >>> print(output_dir)  # /path/to/working_dir/pn_diode_20240115_143022
+        >>> print(output_dir)  # /path/to/working_dir/pn_diode_<hash>
         >>>
-        >>> # Create named directory without timestamp
+        >>> # Create named directory without hash
         >>> output_dir = sim.create_output_dir(name="forward_bias", use_timestamp=False)
         >>> print(output_dir)  # /path/to/working_dir/forward_bias
         >>>
@@ -1722,17 +1733,11 @@ class Simulation:
 
         # Create the directory
         output_dir = os.path.join(self.working_dir, dir_name)
-        
-        # Check if directory already exists (cached results)
-        if os.path.exists(output_dir):
-            import warnings
-            warnings.warn(
-                f"Output directory '{output_dir}' already exists. "
-                f"Reusing existing simulation results. "
-                f"If you want to re-run, add force_rerun=True to run()",
-                UserWarning
-            )
-        else:
+
+        # Track whether this directory already existed (used by run() for cache)
+        self._cache_dir_existed = os.path.exists(output_dir)
+
+        if not self._cache_dir_existed:
             os.makedirs(output_dir, exist_ok=True)
 
         # Update working_dir to point to new directory
