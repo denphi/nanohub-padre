@@ -904,23 +904,85 @@ class IVFileParser:
     """
     Parser for PADRE log files (ivfile format).
 
-    PADRE log files contain I-V data in a specific format with Q-records
-    that store electrode voltages and currents for each bias point.
+    PADRE log files contain I-V data in Q-records that store electrode
+    voltages and currents for each bias point.  Two header variants exist:
 
-    File format:
-    - Line 1: Header (e.g., "# PADRE2.4E 10/24/94")
-    - Line 2: Three integers: num_electrodes, num_electrodes, 0
-    - Q-records: Each starts with "Q" followed by data
-      - 4 lines of 5 values each (20 total values per bias point)
-      - Contains voltages and currents for all electrodes
+    Old format:
+      - Line 1: plain-text header (e.g. "# PADRE2.4E 10/24/94")
+      - Line 2: Fortran-formatted integers  N  N  0
+      - Q-records follow immediately; each has 4 data lines (20 values).
+
+    New format (Fortran binary-style):
+      - Lines 1–N: ASCII character codes (integers 32–126) encoding the
+        header string and a date stamp.
+      - A mesh-info line: nodes  elements  num_electrodes_defined
+      - An IV-setup line:  num_iv_slots  start_voltage  temperature
+      - Short preamble; first Q may be embedded mid-line.
+      - Q-records have 3 data lines (15 values).
+
+    Value layout (4 IV-slots, 20 values / old format):
+      [0-3]   V1 V2 V3 V4
+      [4-7]   padding / repeats
+      [8-11]  I1_e I2_e I3_e I4_e   (electron currents)
+      [12-15] I1_h I2_h I3_h I4_h   (hole currents)
+      [16-19] charges
+
+    Value layout (4 IV-slots, 15 values / new format):
+      [0-3]   V1 V2 V3 V4
+      [4-5]   V_repeats
+      [6-9]   I1 I2 I3 I4            (total currents, single carrier)
+      [10-11] small residuals
+      [12-14] V_repeats
     """
 
     def __init__(self):
         self.data = IVData()
 
+    # ------------------------------------------------------------------
+    # helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _is_ascii_code_line(line: str) -> bool:
+        """Return True if every token is an integer in printable-ASCII range
+        or a Fortran-style float (contains 'E' / '.') mixed with ASCII codes.
+        Used to detect the character-code preamble in the new format."""
+        tokens = line.split()
+        if not tokens:
+            return False
+        for tok in tokens:
+            # Pure integer in printable-ASCII range (32-126)?
+            try:
+                v = int(tok)
+                if 32 <= v <= 126:
+                    continue
+                # Large integers (mesh nodes/elements) are NOT ascii-code lines
+                return False
+            except ValueError:
+                pass
+            # Fortran float like "0.000000000000000E+000" — appears on
+            # line 8 of the new header alongside an ASCII code "35".
+            try:
+                float(tok)
+                continue
+            except ValueError:
+                return False
+        return True
+
+    @staticmethod
+    def _split_on_q(line: str):
+        """If 'Q' appears mid-line (e.g. '645.9Q0.00000E+00 0.00000E+00'),
+        return the portion from Q onward; otherwise return None."""
+        idx = line.find('Q')
+        if idx > 0:  # Q not at position 0, so it's embedded
+            return line[idx:]
+        return None
+
+    # ------------------------------------------------------------------
+    # public API
+    # ------------------------------------------------------------------
     def parse(self, content: str) -> IVData:
         """
-        Parse PADRE log file content.
+        Parse PADRE log file content (both old and new formats).
 
         Parameters
         ----------
@@ -934,145 +996,178 @@ class IVFileParser:
         """
         self.data = IVData()
         lines = content.strip().split('\n')
-
-        if len(lines) < 2:
+        if len(lines) < 3:
             return self.data
 
-        # Parse header - line 2 contains electrode counts
-        # Format: "                     4                     4                     0"
-        header_line = lines[1].strip()
-        header_parts = header_line.split()
-        if len(header_parts) >= 2:
-            try:
-                self.data.num_electrodes = int(header_parts[0])
-            except ValueError:
-                pass
-
-        # Parse Q-records
-        i = 2
-        while i < len(lines):
-            line = lines[i].strip()
-
-            # Look for Q-record start
-            if line.startswith('Q'):
-                # Parse Q-record (spans 5 lines: Q-line + 4 data lines)
-                if i + 4 < len(lines):
-                    bias_point = self._parse_q_record(lines, i)
-                    if bias_point:
-                        self.data.bias_points.append(bias_point)
-                    i += 5
+        # ----------------------------------------------------------
+        # 1. Detect format and extract num_electrodes
+        # ----------------------------------------------------------
+        first_line = lines[0].strip()
+        if first_line.startswith('#'):
+            # --- Old format: plain-text header ---
+            # Line 2 has electrode counts as Fortran-formatted integers
+            header_parts = lines[1].strip().split()
+            if header_parts:
+                try:
+                    self.data.num_electrodes = int(header_parts[0])
+                except ValueError:
+                    pass
+            scan_start = 2          # Q-records start at line index 2
+        else:
+            # --- New format: character-code preamble ---
+            # Skip lines that look like ASCII-code lines.  Then expect:
+            #   mesh-info:  nodes  elements  num_electrodes_defined
+            #   iv-setup:   num_iv_slots  start_voltage  temperature
+            scan_start = 0
+            for i, raw in enumerate(lines):
+                stripped = raw.strip()
+                if not stripped:
                     continue
+                if self._is_ascii_code_line(stripped):
+                    continue
+                # First non-ascii-code line: mesh info (3 large integers)
+                parts = stripped.split()
+                if len(parts) == 3:
+                    try:
+                        int(parts[0]); int(parts[1]); int(parts[2])
+                        # Next line is the IV-setup line
+                        iv_parts = lines[i + 1].strip().split()
+                        self.data.num_electrodes = int(iv_parts[0])
+                        scan_start = i + 2   # skip past IV-setup line
+                        break
+                    except (ValueError, IndexError):
+                        pass
+                # Fallback: if we can't parse mesh info, just start scanning
+                scan_start = i
+                break
 
-            i += 1
+        # ----------------------------------------------------------
+        # 2. Collect Q-record text blocks
+        # ----------------------------------------------------------
+        # A Q-record starts at a line beginning with 'Q' or with 'Q'
+        # embedded after non-Q text (first record in new format).
+        # Each block = the Q-header text + subsequent data lines until
+        # the next Q or end of file.
+        q_blocks: List[str] = []   # each entry is the full text of one Q-record
+
+        current_block: Optional[List[str]] = None
+
+        for i in range(scan_start, len(lines)):
+            line = lines[i].strip()
+            if not line:
+                continue
+
+            if line.startswith('Q'):
+                # Flush previous block
+                if current_block is not None:
+                    q_blocks.append('\n'.join(current_block))
+                current_block = [line]
+            else:
+                # Check for embedded Q (e.g. "645.9Q0.00000E+00 ...")
+                embedded = self._split_on_q(line)
+                if embedded is not None:
+                    if current_block is not None:
+                        q_blocks.append('\n'.join(current_block))
+                    current_block = [embedded]
+                elif current_block is not None:
+                    # Continuation data line — at most 4 data lines per record
+                    # (Q-line is index 0; indices 1–4 are data)
+                    if len(current_block) < 5:
+                        current_block.append(line)
+                    else:
+                        # Block is full; flush and stop collecting until next Q
+                        q_blocks.append('\n'.join(current_block))
+                        current_block = None
+                # else: pre-Q preamble data — ignore
+
+        # Don't forget the last block
+        if current_block is not None:
+            q_blocks.append('\n'.join(current_block))
+
+        # ----------------------------------------------------------
+        # 3. Parse each Q-block into a bias point
+        # ----------------------------------------------------------
+        for block in q_blocks:
+            bias_point = self._parse_q_block(block)
+            if bias_point:
+                self.data.bias_points.append(bias_point)
 
         return self.data
 
-    def _parse_q_record(self, lines: List[str], start: int) -> Optional[Dict]:
-        """
-        Parse a single Q-record.
+    # ------------------------------------------------------------------
+    # private helpers
+    # ------------------------------------------------------------------
+    def _parse_q_block(self, block: str) -> Optional[Dict]:
+        """Parse a single Q-record block (Q-line + data lines) into a
+        bias-point dict with 'voltages' and 'currents'.
 
-        PADRE ivfile format varies by number of electrodes. General structure:
-        - First N values: Voltages V1, V2, ..., VN
-        - Following values: Metadata and currents
-
-        For 2 electrodes (10 values total, 5 values per line x 2 lines):
-        Line 1: V1, V2, extra, extra, extra
-        Line 2: I1_e, I2_e, I1_h, I2_h, extra
-
-        For 4 electrodes (20 values total, 5 values per line x 4 lines):
-        Line 1: V1, V2, V3, V4, extra
-        Line 2: extra, extra, extra, I1_e, I2_e
-        Line 3: I3_e, I4_e, I1_h, I2_h, I3_h
-        Line 4: I4_h, Q1, Q2, Q3, Q4
-        """
+        The Q-line itself ("Q0.00000E+00 0.00000E+00") carries bias-step
+        metadata and is intentionally excluded.  Electrode data lives
+        exclusively in the subsequent data lines."""
         try:
-            # Collect all values from the data lines following the Q marker
-            values = []
-            offset = 1
-            while start + offset < len(lines):
-                line = lines[start + offset].strip()
-                # Stop if we hit another Q-record or empty line after getting some data
-                if line.startswith('Q') or (not line and len(values) >= 10):
-                    break
-                if line:
-                    parts = line.split()
-                    for part in parts:
-                        try:
-                            values.append(float(part))
-                        except ValueError:
-                            values.append(0.0)
-                offset += 1
-                # Safety limit - don't read more than 5 lines
-                if offset > 5:
-                    break
+            block_lines = block.strip().split('\n')
+
+            # Collect numeric values from data lines only (skip Q-line)
+            values: List[float] = []
+            for dl in block_lines[1:]:
+                for token in dl.strip().split():
+                    try:
+                        values.append(float(token))
+                    except ValueError:
+                        pass
 
             num_elec = self.data.num_electrodes
             if num_elec == 0:
-                # Try to infer from number of values
-                if len(values) >= 20:
-                    num_elec = 4
-                elif len(values) >= 10:
-                    num_elec = 2
-                else:
-                    num_elec = 2  # Default
+                num_elec = 4 if len(values) >= 15 else 2
 
-            # Minimum values needed: voltages + electron currents + hole currents
-            min_values = num_elec + 2 * num_elec
-            if len(values) < min_values:
+            if len(values) < num_elec + 2:   # need at least voltages + some currents
                 return None
 
-            bias_point = {
-                'voltages': {},
-                'currents': {}
-            }
+            bias_point: Dict = {'voltages': {}, 'currents': {}}
 
-            # Voltages are at indices 0 to num_elec-1
+            # Voltages are always the first num_elec values
             for elec in range(1, num_elec + 1):
-                idx = elec - 1
-                if idx < len(values):
-                    bias_point['voltages'][elec] = values[idx]
+                bias_point['voltages'][elec] = values[elec - 1]
 
-            # Current indices depend on number of electrodes
-            # For 2-electrode devices: currents start right after voltages
-            # For 4-electrode devices: currents start at index 8
-            if num_elec == 2:
-                # 2-electrode format: V1, V2, ..., I1_e, I2_e, I1_h, I2_h, ...
-                e_base = num_elec + 3  # Skip voltages and 3 extra values
-                h_base = e_base + num_elec
-
-                # Alternative layout: check if values at expected positions are reasonable currents
-                # (typically < 1 amp for device simulation)
-                if e_base < len(values) and abs(values[e_base]) > 1:
-                    # Try direct after voltages
-                    e_base = num_elec
-                    h_base = e_base + num_elec
-            else:
-                # 4-electrode format
+            # Determine current base index from total value count:
+            #   20 values (old, 4 data lines): electron base = 8, hole base = 12
+            #   15 values (new, 3 data lines): single-carrier base = 6, no separate hole
+            #   10 values (2-electrode):       electron base = 5, hole base = 7
+            n_vals = len(values)
+            if n_vals >= 20:
                 e_base = 8
                 h_base = 12
+                has_hole = True
+            elif n_vals >= 15:
+                e_base = 6
+                h_base = None
+                has_hole = False
+            else:
+                # 2-electrode / 10-value layout
+                e_base = num_elec + 3
+                h_base = e_base + num_elec
+                has_hole = True
 
             for elec in range(1, num_elec + 1):
-                elec_currents = {}
-
-                # Electron current
+                ec: Dict = {}
                 e_idx = e_base + (elec - 1)
-                if e_idx < len(values):
-                    elec_currents['electron'] = values[e_idx]
+                if e_idx < n_vals:
+                    ec['electron'] = values[e_idx]
 
-                # Hole current
-                h_idx = h_base + (elec - 1)
-                if h_idx < len(values):
-                    elec_currents['hole'] = values[h_idx]
+                if has_hole and h_base is not None:
+                    h_idx = h_base + (elec - 1)
+                    if h_idx < n_vals:
+                        ec['hole'] = values[h_idx]
 
-                # Total current (electron + hole)
-                if 'electron' in elec_currents and 'hole' in elec_currents:
-                    elec_currents['total'] = elec_currents['electron'] + elec_currents['hole']
-                elif 'electron' in elec_currents:
-                    elec_currents['total'] = elec_currents['electron']
-                elif 'hole' in elec_currents:
-                    elec_currents['total'] = elec_currents['hole']
+                # Total = electron + hole (or whichever is available)
+                if 'electron' in ec and 'hole' in ec:
+                    ec['total'] = ec['electron'] + ec['hole']
+                elif 'electron' in ec:
+                    ec['total'] = ec['electron']
+                elif 'hole' in ec:
+                    ec['total'] = ec['hole']
 
-                bias_point['currents'][elec] = elec_currents
+                bias_point['currents'][elec] = ec
 
             return bias_point
 
