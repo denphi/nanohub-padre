@@ -1132,7 +1132,7 @@ class IVFileParser:
             # Determine current base index from total value count:
             #   20 values (old, 4 data lines): electron base = 8, hole base = 12
             #   15 values (new, 3 data lines): single-carrier base = 6, no separate hole
-            #   10 values (2-electrode):       electron base = 5, hole base = 7
+            #   10 values (2-electrode):       total current base = 4, no hole
             n_vals = len(values)
             if n_vals >= 20:
                 e_base = 8
@@ -1143,10 +1143,11 @@ class IVFileParser:
                 h_base = None
                 has_hole = False
             else:
-                # 2-electrode / 10-value layout
-                e_base = num_elec + 3
-                h_base = e_base + num_elec
-                has_hole = True
+                # 2-electrode / 10-value layout: [0,1]=V, [2,3]=V repeat,
+                # [4,5]=I_total, [6,7]=residuals, [8,9]=V repeat
+                e_base = 4
+                h_base = None
+                has_hole = False
 
             for elec in range(1, num_elec + 1):
                 ec: Dict = {}
