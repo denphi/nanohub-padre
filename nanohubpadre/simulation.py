@@ -1681,6 +1681,91 @@ class Simulation:
             "Check that the simulation has the appropriate Plot1D commands."
         )
 
+    def plot_contour(
+        self,
+        filename,
+        title=None,
+        colorscale="RdBu_r",
+        log_scale=False,
+        cbar_title="V",
+        n_grid=100,
+        backend=None,
+        show=True,
+        **kwargs,
+    ):
+        """
+        Plot 2D contour map(s) from Plot3D output files.
+
+        Parameters
+        ----------
+        filename : str or list of str
+            Plot3D output file name(s). Resolved relative to working_dir.
+            A single name produces one panel; a list produces side-by-side
+            subplots (e.g. ``["pot_eq", "pot_bias"]``).
+        title : str or list of str, optional
+            Panel title(s). Defaults to the filename(s).
+        colorscale : str
+            Colorscale / colormap name (default ``"RdBu_r"``).
+        log_scale : bool
+            If True, plot log10 of absolute values (default False).
+        cbar_title : str
+            Colorbar label (default ``"V"``).
+        n_grid : int
+            Interpolation grid resolution (default 100).
+        backend : str, optional
+            ``"matplotlib"`` or ``"plotly"``. If None, uses first available.
+        show : bool
+            Display the plot immediately (default True).
+        **kwargs
+            Extra arguments forwarded to the backend.
+
+        Returns
+        -------
+        Any
+            matplotlib Figure or plotly Figure.
+
+        Example
+        -------
+        >>> sim.add_command(Plot3D(potential=True, outfile="pot_eq"))
+        >>> sim.run()
+        >>> sim.plot_contour("pot_eq", title="Potential", cbar_title="V")
+        >>>
+        >>> # Side-by-side equilibrium vs bias
+        >>> sim.plot_contour(["pot_eq", "pot_bias"],
+        ...                  title=["Equilibrium", "Vgs=1V, Vds=1V"],
+        ...                  cbar_title="V")
+        """
+        from .plot3d import parse_plot3d_file
+        from .visualization import plot_contour as _plot_contour
+
+        # Normalise to list
+        if isinstance(filename, str):
+            filenames = [filename]
+        else:
+            filenames = list(filename)
+
+        # Parse each file
+        data_list = []
+        for fn in filenames:
+            filepath = os.path.join(self.working_dir, fn)
+            data_list.append(parse_plot3d_file(filepath))
+
+        # Default titles to filenames
+        if title is None:
+            title = filenames
+
+        return _plot_contour(
+            data_list,
+            title=title,
+            colorscale=colorscale,
+            log_scale=log_scale,
+            cbar_title=cbar_title,
+            n_grid=n_grid,
+            backend=backend,
+            show=show,
+            **kwargs,
+        )
+
     # -----------------------------------------------------------------------
     # Output management
     # -----------------------------------------------------------------------

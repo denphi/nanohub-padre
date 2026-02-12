@@ -693,6 +693,193 @@ def plot_2d_map(fig, data, col, colorscale="RdBu_r", log_scale=False,
 
 
 # ---------------------------------------------------------------------------
+# 2D contour map — high-level API with backend support
+# ---------------------------------------------------------------------------
+
+def _plot_contour_matplotlib(data_list, titles, colorscale, log_scale,
+                             cbar_title, n_grid, show, **kwargs):
+    """Matplotlib backend for plot_contour."""
+    import matplotlib.pyplot as plt
+
+    ncols = len(data_list)
+    fig, axes = plt.subplots(
+        1, ncols,
+        figsize=kwargs.get('figsize', (6 * ncols, 5)),
+    )
+    if ncols == 1:
+        axes = [axes]
+
+    cb_title = cbar_title
+    if log_scale:
+        cb_title = f"log\u2081\u2080|{cbar_title}|"
+
+    for ax, data, sub_title in zip(axes, data_list, titles):
+        xi, yi, zi = data.to_grid(n_grid=n_grid, method='linear')
+        if log_scale:
+            zi = np.log10(np.abs(zi) + 1e-30)
+
+        pcm = ax.pcolormesh(xi, yi, zi, cmap=colorscale, shading='auto')
+        cs = ax.contour(xi, yi, zi, colors='black', linewidths=0.8)
+        ax.clabel(cs, fontsize=8, inline=True)
+        fig.colorbar(pcm, ax=ax, label=cb_title)
+        ax.set_xlabel("X (\u00b5m)")
+        ax.set_ylabel("Y (\u00b5m)")
+        ax.set_title(sub_title)
+        ax.set_aspect('equal')
+
+    plt.tight_layout()
+    if show:
+        plt.show()
+
+    return fig
+
+
+def _plot_contour_plotly(data_list, titles, colorscale, log_scale,
+                         cbar_title, n_grid, show, **kwargs):
+    """Plotly backend for plot_contour."""
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    ncols = len(data_list)
+    fig = make_subplots(
+        rows=1, cols=ncols,
+        subplot_titles=titles,
+        horizontal_spacing=0.12 if ncols > 1 else 0.0,
+    )
+
+    for col_idx, data in enumerate(data_list, start=1):
+        xi, yi, zi = data.to_grid(n_grid=n_grid, method='linear')
+        cb = cbar_title
+        if log_scale:
+            zi = np.log10(np.abs(zi) + 1e-30)
+            cb = f"log\u2081\u2080|{cbar_title}|"
+
+        cbar_x = 0.45 if (col_idx == 1 and ncols > 1) else 1.0
+
+        fig.add_trace(go.Heatmap(
+            x=xi, y=yi, z=zi,
+            colorscale=colorscale,
+            colorbar=dict(title=cb, x=cbar_x, len=0.9),
+        ), row=1, col=col_idx)
+
+        fig.add_trace(go.Contour(
+            x=xi, y=yi, z=zi,
+            contours=dict(coloring="none", showlabels=True,
+                          labelfont=dict(size=9, color="black")),
+            line=dict(color="black", width=1),
+            showscale=False, showlegend=False,
+        ), row=1, col=col_idx)
+
+    fig.update_xaxes(title_text="X (\u00b5m)")
+    fig.update_yaxes(title_text="Y (\u00b5m)")
+    fig.update_layout(
+        template="plotly_white",
+        width=kwargs.get('width', 550 * ncols),
+        height=kwargs.get('height', 500),
+        showlegend=False,
+    )
+    for col_idx in range(1, ncols + 1):
+        fig.update_yaxes(
+            scaleanchor=f"x{'' if col_idx == 1 else col_idx}",
+            scaleratio=1, row=1, col=col_idx,
+        )
+
+    if show:
+        fig.show()
+
+    return fig
+
+
+def plot_contour(
+    data,
+    title="2D Contour Map",
+    colorscale="RdBu_r",
+    log_scale=False,
+    cbar_title="V",
+    n_grid=100,
+    backend=None,
+    show=True,
+    **kwargs,
+):
+    """
+    Plot 2D contour map(s) from Plot3D scatter data.
+
+    Interpolates scattered mesh-node data onto a regular grid and renders
+    a heatmap with contour-line overlay.  Supports side-by-side comparison
+    when given multiple datasets (e.g. equilibrium vs. bias).
+
+    Parameters
+    ----------
+    data : Plot3DData or list of Plot3DData
+        Parsed Plot3D data.  A single object produces one panel; a list
+        produces side-by-side subplots.
+    title : str or list of str
+        Plot title.  When *data* is a list, *title* can be a list of
+        per-panel titles (e.g. ``["Equilibrium", "Vgs=1V"]``).
+    colorscale : str
+        Colorscale / colormap name (default ``"RdBu_r"``).
+        Plotly and matplotlib names both work.
+    log_scale : bool
+        If True, plot ``log10(|values|)`` (default False).
+    cbar_title : str
+        Colorbar label (default ``"V"``).
+    n_grid : int
+        Interpolation grid resolution (default 100).
+    backend : str, optional
+        ``"matplotlib"`` or ``"plotly"``.  If None, uses first available.
+    show : bool
+        Display the plot immediately (default True).
+    **kwargs
+        Extra keyword arguments forwarded to the backend
+        (e.g. ``figsize``, ``width``, ``height``).
+
+    Returns
+    -------
+    Any
+        matplotlib Figure or plotly Figure.
+
+    Example
+    -------
+    >>> from nanohubpadre import parse_plot3d_file, plot_contour
+    >>> data = parse_plot3d_file("pot_eq")
+    >>> plot_contour(data, title="Potential", cbar_title="V")
+    >>>
+    >>> # Side-by-side comparison
+    >>> d1 = parse_plot3d_file("pot_eq")
+    >>> d2 = parse_plot3d_file("pot_bias")
+    >>> plot_contour([d1, d2], title=["Equilibrium", "Bias"], cbar_title="V")
+    """
+    if backend is None:
+        backend = _get_default_backend()
+
+    # Normalise to list
+    if not isinstance(data, list):
+        data = [data]
+
+    # Normalise titles
+    if isinstance(title, str):
+        if len(data) == 1:
+            titles = [title]
+        else:
+            titles = [title] + [""] * (len(data) - 1)
+    else:
+        titles = list(title)
+
+    if backend == 'matplotlib':
+        return _plot_contour_matplotlib(
+            data, titles, colorscale, log_scale,
+            cbar_title, n_grid, show, **kwargs,
+        )
+    elif backend == 'plotly':
+        return _plot_contour_plotly(
+            data, titles, colorscale, log_scale,
+            cbar_title, n_grid, show, **kwargs,
+        )
+    else:
+        raise ValueError(f"Unknown backend: {backend}. Use 'matplotlib' or 'plotly'.")
+
+
+# ---------------------------------------------------------------------------
 # IVData plotting mixin
 # ---------------------------------------------------------------------------
 
