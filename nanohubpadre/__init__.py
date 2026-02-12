@@ -69,6 +69,7 @@ from .visualization import (
     plot_transfer_characteristic,
     plot_output_characteristic,
     plot_diode_iv,
+    plot_2d_map,
     get_available_backends,
 )
 
@@ -150,6 +151,7 @@ __all__ = [
     "plot_transfer_characteristic",
     "plot_output_characteristic",
     "plot_diode_iv",
+    "plot_2d_map",
     "get_available_backends",
     # Solution file parser
     "parse_solution_file",

@@ -3,7 +3,8 @@ Visualization module for PADRE simulation results.
 
 Provides plotting functions for I-V characteristics using matplotlib and plotly
 as rendering backends. Supports transfer characteristics (Id-Vg), output
-characteristics (Id-Vd), and general I-V curves.
+characteristics (Id-Vd), general I-V curves, and 2D contour maps of device
+quantities (potential, doping, carrier concentrations, etc.).
 
 Example
 -------
@@ -19,6 +20,7 @@ Example
 """
 
 from typing import List, Optional, Tuple, Union, Any, TYPE_CHECKING
+import numpy as np
 
 if TYPE_CHECKING:
     from .parser import IVData
@@ -631,6 +633,63 @@ def plot_diode_iv(
         show=show,
         **kwargs
     )
+
+
+# ---------------------------------------------------------------------------
+# 2D contour map for Plot3D data
+# ---------------------------------------------------------------------------
+
+def plot_2d_map(fig, data, col, colorscale="RdBu_r", log_scale=False,
+                cbar_title="V", n_grid=100):
+    """
+    Interpolate Plot3D scatter data onto a regular grid and add a heatmap
+    with contour overlay to a plotly subplot.
+
+    Parameters
+    ----------
+    fig : plotly.graph_objects.Figure
+        A plotly Figure (typically created with ``make_subplots``)
+    data : Plot3DData
+        Parsed Plot3D scatter data (must have a ``to_grid`` method)
+    col : int
+        Subplot column index (1-based)
+    colorscale : str
+        Plotly colorscale name (default: "RdBu_r")
+    log_scale : bool
+        If True, plot log10 of absolute values (default: False)
+    cbar_title : str
+        Colorbar title (default: "V")
+    n_grid : int
+        Number of grid points for interpolation (default: 100)
+
+    Returns
+    -------
+    np.ndarray
+        The 2D interpolated (and optionally log-transformed) grid values
+    """
+    import plotly.graph_objects as go
+
+    xi, yi, zi = data.to_grid(n_grid=n_grid, method='linear')
+
+    if log_scale:
+        zi = np.log10(np.abs(zi) + 1e-30)
+        cbar_title = f"log\u2081\u2080|{cbar_title}|"
+
+    fig.add_trace(go.Heatmap(
+        x=xi, y=yi, z=zi,
+        colorscale=colorscale,
+        colorbar=dict(title=cbar_title, x=0.45 if col == 1 else 1.0, len=0.9),
+    ), row=1, col=col)
+
+    fig.add_trace(go.Contour(
+        x=xi, y=yi, z=zi,
+        contours=dict(coloring="none", showlabels=True,
+                      labelfont=dict(size=9, color="black")),
+        line=dict(color="black", width=1),
+        showscale=False, showlegend=False,
+    ), row=1, col=col)
+
+    return zi
 
 
 # ---------------------------------------------------------------------------
