@@ -12,6 +12,8 @@ from .mesfet import create_mesfet, mesfet
 from .bjt import create_bjt, bjt
 from .schottky_diode import create_schottky_diode, schottky_diode
 from .solar_cell import create_solar_cell, solar_cell
+from .describe import describe, list_devices
+from .schematics import device_schematic, DeviceSchematic
 
 __all__ = [
     # Factory functions
@@ -30,4 +32,9 @@ __all__ = [
     "bjt",
     "schottky_diode",
     "solar_cell",
+    # Description and schematics
+    "describe",
+    "list_devices",
+    "device_schematic",
+    "DeviceSchematic",
 ]

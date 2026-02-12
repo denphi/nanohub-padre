@@ -53,6 +53,11 @@ from .devices import (
     bjt,
     schottky_diode,
     solar_cell,
+    # Description and schematics
+    describe,
+    list_devices,
+    device_schematic,
+    DeviceSchematic,
 )
 
 # Environment loading (use command)
@@ -131,6 +136,11 @@ __all__ = [
     "bjt",
     "schottky_diode",
     "solar_cell",
+    # Description and schematics
+    "describe",
+    "list_devices",
+    "device_schematic",
+    "DeviceSchematic",
     # Environment loading
     "use",
     "load_padre",
