@@ -696,10 +696,32 @@ def plot_2d_map(fig, data, col, colorscale="RdBu_r", log_scale=False,
 # 2D contour map — high-level API with backend support
 # ---------------------------------------------------------------------------
 
+def _plotly_cmap_to_matplotlib(name: str) -> str:
+    """Convert a Plotly colorscale name to a matplotlib cmap name.
+
+    Plotly uses capitalised names (``"Jet"``, ``"Hot"``, ``"Viridis"``),
+    while matplotlib uses lowercase (``"jet"``, ``"hot"``, ``"viridis"``).
+    Names that already exist in matplotlib (e.g. ``"RdBu_r"``) are passed
+    through unchanged.
+    """
+    import matplotlib.pyplot as plt
+    # If the name is already valid, use it directly
+    if name in plt.colormaps:
+        return name
+    # Try lowercase
+    lower = name.lower()
+    if lower in plt.colormaps:
+        return lower
+    # Return as-is and let matplotlib raise a clear error
+    return name
+
+
 def _plot_contour_matplotlib(data_list, titles, colorscale, log_scale,
                              cbar_title, n_grid, show, **kwargs):
     """Matplotlib backend for plot_contour."""
     import matplotlib.pyplot as plt
+
+    cmap = _plotly_cmap_to_matplotlib(colorscale)
 
     ncols = len(data_list)
     fig, axes = plt.subplots(
@@ -718,7 +740,7 @@ def _plot_contour_matplotlib(data_list, titles, colorscale, log_scale,
         if log_scale:
             zi = np.log10(np.abs(zi) + 1e-30)
 
-        pcm = ax.pcolormesh(xi, yi, zi, cmap=colorscale, shading='auto')
+        pcm = ax.pcolormesh(xi, yi, zi, cmap=cmap, shading='auto')
         cs = ax.contour(xi, yi, zi, colors='black', linewidths=0.8)
         ax.clabel(cs, fontsize=8, inline=True)
         fig.colorbar(pcm, ax=ax, label=cb_title)
