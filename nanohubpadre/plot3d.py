@@ -2,10 +2,170 @@
 3D plotting for PADRE simulations.
 
 PLOT.3D outputs scatter files for 3D visualization.
+This module also provides a parser for PADRE Plot3D scatter output files.
 """
 
+from dataclasses import dataclass, field
 from typing import Optional, List, Union
+import numpy as np
 from .base import PadreCommand
+
+
+@dataclass
+class Plot3DData:
+    """
+    Parsed data from a PADRE Plot3D scatter file.
+
+    Attributes
+    ----------
+    x : np.ndarray
+        X coordinates of mesh nodes (in cm)
+    y : np.ndarray
+        Y coordinates of mesh nodes (in cm)
+    values : np.ndarray
+        Quantity values at each node
+    label : str
+        Label of the quantity (e.g., "Potential", "Doping")
+    num_nodes : int
+        Total number of nodes parsed
+    """
+    x: np.ndarray = field(default_factory=lambda: np.array([]))
+    y: np.ndarray = field(default_factory=lambda: np.array([]))
+    values: np.ndarray = field(default_factory=lambda: np.array([]))
+    label: str = ""
+    num_nodes: int = 0
+
+    def to_grid(self, n_grid: int = 100, method: str = 'linear'):
+        """
+        Interpolate scattered data onto a regular grid.
+
+        Uses scipy.interpolate.griddata (same approach as the
+        Rappture MESFET Lab's MATLAB post-processing).
+
+        Parameters
+        ----------
+        n_grid : int
+            Number of grid points in each direction (default: 100)
+        method : str
+            Interpolation method: 'linear', 'cubic', or 'nearest'
+            (default: 'linear' — avoids boundary overshoot)
+
+        Returns
+        -------
+        tuple (xi, yi, zi)
+            xi : 1D array of x grid coordinates (µm)
+            yi : 1D array of y grid coordinates (µm)
+            zi : 2D array (n_grid, n_grid) of interpolated values
+        """
+        from scipy.interpolate import griddata
+
+        x_um = self.x * 1e4
+        y_um = self.y * 1e4
+
+        xi = np.linspace(x_um.min(), x_um.max(), n_grid)
+        yi = np.linspace(y_um.min(), y_um.max(), n_grid)
+        xi_grid, yi_grid = np.meshgrid(xi, yi)
+
+        zi = griddata(
+            (x_um, y_um), self.values,
+            (xi_grid, yi_grid), method=method
+        )
+
+        return xi, yi, zi
+
+
+def parse_plot3d_file(filepath: str) -> Plot3DData:
+    """
+    Parse a PADRE Plot3D scatter file.
+
+    PADRE's ``PLOT.3D`` command writes scatter files with the following
+    structure:
+
+    - 11 header lines: ``begin scatter``, ``origin``, ``d``, ``title``,
+      ``begin p``, ``td``, ``topology point``, ``m <ncols>``,
+      ``total <N>``, ``label ...``, ``f``
+    - *N* data lines (repeated twice for z=0 and z=1 planes):
+      ``x  y  z  value``  (coordinates in cm)
+    - ``end p`` marker
+    - A second section (``begin P``) with mesh connectivity indices
+      (prism topology) — **not** data; skipped entirely.
+
+    For a 2D device, PADRE duplicates every node at z=0 and z=1.
+    Only the z=0 plane is kept.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the Plot3D scatter file
+
+    Returns
+    -------
+    Plot3DData
+        Parsed mesh-node data with x, y coordinates (cm) and values
+
+    Example
+    -------
+    >>> data = parse_plot3d_file("output/pot_eq")
+    >>> print(f"{data.num_nodes} nodes, label={data.label}")
+    >>> xi, yi, zi = data.to_grid(n_grid=100)
+    """
+    with open(filepath, 'r') as f:
+        lines = f.readlines()
+
+    xs, ys, vals = [], [], []
+    in_data = False
+    label = ""
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Extract the quantity label from the header
+        if stripped.startswith('label '):
+            # e.g. label "x-coord" "y-coord" "z-coord" "Potential"
+            parts = stripped.split('"')
+            if len(parts) >= 8:
+                label = parts[7]  # 4th quoted string
+
+        # Start reading after the "f" header line
+        if stripped == 'f' and not in_data:
+            in_data = True
+            continue
+
+        # Stop at "end p" — don't parse the connectivity section
+        if stripped == 'end p':
+            break
+
+        if not in_data:
+            continue
+
+        parts = stripped.split()
+        if len(parts) != 4:
+            continue
+
+        try:
+            x = float(parts[0])
+            y = float(parts[1])
+            z = float(parts[2])
+            val = float(parts[3])
+        except ValueError:
+            continue
+
+        # Keep only the z=0 plane (z=1 is a duplicate for 2D devices)
+        if abs(z) > 0.5:
+            continue
+
+        xs.append(x)
+        ys.append(y)
+        vals.append(val)
+
+    result = Plot3DData(
+        x=np.array(xs),
+        y=np.array(ys),
+        values=np.array(vals),
+        label=label,
+        num_nodes=len(xs),
+    )
+    return result
 
 
 class Plot3D(PadreCommand):

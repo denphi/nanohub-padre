@@ -21,7 +21,7 @@ from .interface import Interface
 from .regrid import Regrid, Adapt
 from .plotting import Plot1D, Plot2D, Contour, Vector
 from .options import Options, Load
-from .plot3d import Plot3D
+from .plot3d import Plot3D, Plot3DData, parse_plot3d_file
 from .base import Comment, Title
 from .parser import (
     parse_padre_output,
@@ -100,6 +100,8 @@ __all__ = [
     "Plot1D", "Plot2D", "Contour", "Vector",
     "Options", "Load",
     "Plot3D",
+    "Plot3DData",
+    "parse_plot3d_file",
     "Comment", "Title",
     # Parser
     "parse_padre_output",
