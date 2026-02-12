@@ -127,6 +127,17 @@ def create_mosfet(
     """
     is_nmos = device_type.lower() == "nmos"
     sim = Simulation(title=title or f"{'NMOS' if is_nmos else 'PMOS'} MOSFET")
+    sim._device_type = "mosfet"
+    sim._device_kwargs = dict(
+        channel_length=channel_length, gate_oxide_thickness=gate_oxide_thickness,
+        junction_depth=junction_depth, device_width=device_width,
+        device_depth=device_depth, nx=nx, ny=ny, channel_doping=channel_doping,
+        substrate_doping=substrate_doping, source_drain_doping=source_drain_doping,
+        device_type=device_type, temperature=temperature, bgn=bgn, carriers=carriers,
+        title=title, log_iv=log_iv, iv_file=iv_file, log_bands_eq=log_bands_eq,
+        log_bands_bias=log_bands_bias, vgs_sweep=vgs_sweep, vds=vds,
+        vds_sweep=vds_sweep, vgs=vgs,
+    )
 
     # Calculate dimensions
     sd_width = (device_width - channel_length) / 2

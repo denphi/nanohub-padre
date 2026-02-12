@@ -140,6 +140,17 @@ def create_pn_diode(
     >>> sim.plot_band_diagram()  # Plots all logged band diagrams
     """
     sim = Simulation(title=title or "PN Junction Diode")
+    sim._device_type = "pn_diode"
+    sim._device_kwargs = dict(
+        length=length, width=width, junction_position=junction_position,
+        nx=nx, ny=ny, p_doping=p_doping, n_doping=n_doping,
+        temperature=temperature, srh=srh, conmob=conmob, fldmob=fldmob,
+        impact=impact, taun0=taun0, taup0=taup0, title=title,
+        postscript=postscript, log_iv=log_iv, iv_file=iv_file,
+        log_bands_eq=log_bands_eq, log_bands_bias=log_bands_bias,
+        forward_sweep=forward_sweep, reverse_sweep=reverse_sweep,
+        sweep_electrode=sweep_electrode, log_physics_at=log_physics_at,
+    )
 
     # Options
     if postscript:

@@ -136,6 +136,17 @@ def create_bjt(
     """
     is_npn = device_type.lower() == "npn"
     sim = Simulation(title=title or f"{'NPN' if is_npn else 'PNP'} BJT")
+    sim._device_type = "bjt"
+    sim._device_kwargs = dict(
+        emitter_width=emitter_width, base_width=base_width,
+        collector_width=collector_width, device_depth=device_depth,
+        nx=nx, ny=ny, emitter_doping=emitter_doping, base_doping=base_doping,
+        collector_doping=collector_doping, device_type=device_type,
+        temperature=temperature, srh=srh, auger=auger, bgn=bgn,
+        conmob=conmob, fldmob=fldmob, title=title, log_iv=log_iv,
+        iv_file=iv_file, log_bands_eq=log_bands_eq, vbe=vbe,
+        vce_sweep=vce_sweep, gummel_sweep=gummel_sweep, gummel_vce=gummel_vce,
+    )
 
     total_width = emitter_width + base_width + collector_width
 

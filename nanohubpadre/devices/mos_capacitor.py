@@ -119,6 +119,17 @@ def create_mos_capacitor(
     >>> result = sim.run()
     """
     sim = Simulation(title=title or "MOS Capacitor")
+    sim._device_type = "mos_capacitor"
+    sim._device_kwargs = dict(
+        oxide_thickness=oxide_thickness, silicon_thickness=silicon_thickness,
+        device_width=device_width, ny_oxide=ny_oxide, ny_silicon=ny_silicon,
+        nx=nx, substrate_doping=substrate_doping, substrate_type=substrate_type,
+        oxide_permittivity=oxide_permittivity, oxide_qf=oxide_qf,
+        temperature=temperature, conmob=conmob, fldmob=fldmob,
+        gate_type=gate_type, title=title, log_cv=log_cv, cv_file=cv_file,
+        log_bands_eq=log_bands_eq, log_bands_bias=log_bands_bias,
+        vg_sweep=vg_sweep, ac_frequency=ac_frequency,
+    )
 
     total_ny = ny_oxide + ny_silicon
     total_thickness = oxide_thickness + silicon_thickness

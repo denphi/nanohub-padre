@@ -121,6 +121,18 @@ def create_mesfet(
     """
     is_n_type = device_type.lower() == "n"
     sim = Simulation(title=title or f"{'N' if is_n_type else 'P'}-channel MESFET")
+    sim._device_type = "mesfet"
+    sim._device_kwargs = dict(
+        channel_length=channel_length, gate_length=gate_length,
+        device_width=device_width, channel_depth=channel_depth,
+        substrate_depth=substrate_depth, nx=nx, ny=ny,
+        channel_doping=channel_doping, substrate_doping=substrate_doping,
+        contact_doping=contact_doping, device_type=device_type,
+        gate_workfunction=gate_workfunction, temperature=temperature,
+        bgn=bgn, conmob=conmob, fldmob=fldmob, title=title,
+        log_iv=log_iv, iv_file=iv_file, log_bands_eq=log_bands_eq,
+        vgs=vgs, vds_sweep=vds_sweep,
+    )
 
     total_depth = substrate_depth + channel_depth
     source_width = channel_length

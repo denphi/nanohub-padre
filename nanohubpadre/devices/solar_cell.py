@@ -126,6 +126,19 @@ def create_solar_cell(
     """
     is_n_on_p = device_type.lower() == "n_on_p"
     sim = Simulation(title=title or f"Solar Cell ({'N-on-P' if is_n_on_p else 'P-on-N'})")
+    sim._device_type = "solar_cell"
+    sim._device_kwargs = dict(
+        emitter_depth=emitter_depth, base_thickness=base_thickness,
+        device_width=device_width, nx=nx, ny=ny, emitter_doping=emitter_doping,
+        base_doping=base_doping, device_type=device_type,
+        temperature=temperature, srh=srh, auger=auger, conmob=conmob,
+        fldmob=fldmob, taun0=taun0, taup0=taup0,
+        front_surface_velocity=front_surface_velocity,
+        back_surface_velocity=back_surface_velocity,
+        title=title, log_iv=log_iv, iv_file=iv_file,
+        log_bands_eq=log_bands_eq, forward_sweep=forward_sweep,
+        sweep_electrode=sweep_electrode,
+    )
 
     total_depth = emitter_depth + base_thickness
 

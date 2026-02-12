@@ -116,6 +116,10 @@ class Simulation:
         # Output manager for tracking and accessing results
         self._outputs: Optional[OutputManager] = None
 
+        # Device factory metadata (set by factory functions)
+        self._device_type: Optional[str] = None
+        self._device_kwargs: dict = {}
+
     # Property accessors
     @property
     def mesh(self) -> Optional[Mesh]:
@@ -257,6 +261,50 @@ class Simulation:
             self._build_output_registry()
         self._outputs.working_dir = self.working_dir
         self._outputs.load_all()
+
+    # Device factory integration
+    def device_schematic(self, **kwargs):
+        """Generate an SVG cross-section schematic for this device.
+
+        Only works for simulations created by a device factory function
+        (e.g., create_pn_diode, create_mosfet). The schematic reflects
+        the parameters used to create the simulation.
+
+        Parameters
+        ----------
+        **kwargs
+            Override any factory parameters for the schematic.
+
+        Returns
+        -------
+        DeviceSchematic
+            SVG schematic with Jupyter display support (_repr_svg_)
+        """
+        if self._device_type is None:
+            raise RuntimeError(
+                "device_schematic() is only available for simulations created "
+                "by a device factory (e.g., create_pn_diode, create_mosfet)."
+            )
+        from .devices.schematics import device_schematic as _device_schematic
+        merged = {**self._device_kwargs, **kwargs}
+        return _device_schematic(self._device_type, **merged)
+
+    @staticmethod
+    def describe(device_name=None):
+        """Show available parameters for a device type.
+
+        Can be called as a static method or on an instance:
+        - ``Simulation.describe('pn_diode')`` — describe a device by name
+        - ``Simulation.describe()`` — list all available devices
+
+        Parameters
+        ----------
+        device_name : str, optional
+            Device name (e.g., 'pn_diode', 'mosfet'). If None, lists
+            all available devices.
+        """
+        from .devices.describe import describe as _describe
+        return _describe(device_name)
 
     # Add methods
     def add_region(self, region: Region) -> "Simulation":

@@ -116,6 +116,16 @@ def create_schottky_diode(
     """
     is_n_type = doping_type.lower() == "n"
     sim = Simulation(title=title or "Schottky Diode")
+    sim._device_type = "schottky_diode"
+    sim._device_kwargs = dict(
+        length=length, width=width, nx=nx, ny=ny, doping=doping,
+        doping_type=doping_type, workfunction=workfunction,
+        barrier_lowering=barrier_lowering, surf_rec=surf_rec,
+        temperature=temperature, srh=srh, conmob=conmob, fldmob=fldmob,
+        title=title, log_iv=log_iv, iv_file=iv_file,
+        log_bands_eq=log_bands_eq, log_bands_bias=log_bands_bias,
+        forward_sweep=forward_sweep, reverse_sweep=reverse_sweep,
+    )
 
     # Mesh with refinement near Schottky contact
     sim.mesh = Mesh(nx=nx, ny=ny, outfile="mesh")
