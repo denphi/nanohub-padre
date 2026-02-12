@@ -2,7 +2,7 @@
 Bipolar Junction Transistor (BJT) factory function.
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from ..simulation import Simulation
 from ..mesh import Mesh
 from ..region import Region
@@ -12,6 +12,7 @@ from ..contact import Contact
 from ..models import Models
 from ..solver import System, Solve
 from ..log import Log
+from ..plot3d import Plot3D
 
 
 def create_bjt(
@@ -47,6 +48,11 @@ def create_bjt(
     # Gummel plot sweep
     gummel_sweep: Optional[Tuple[float, float, float]] = None,
     gummel_vce: float = 2.0,
+    # 2D contour map options
+    contour_maps: bool = False,
+    contour_vbe: float = 0.7,
+    contour_vce: float = 2.0,
+    contour_quantities: Optional[List[str]] = None,
 ) -> Simulation:
     """
     Create a Bipolar Junction Transistor (BJT) simulation.
@@ -105,6 +111,16 @@ def create_bjt(
         Example: (0.0, 0.8, 0.05) sweeps Vbe from 0V to 0.8V
     gummel_vce : float
         Fixed Vce for Gummel plot (default: 2.0)
+    contour_maps : bool
+        If True, add Plot3D scatter file dumps at equilibrium and under bias
+        for 2D contour visualization (default: False)
+    contour_vbe : float
+        Base-emitter voltage for contour map bias point (default: 0.7)
+    contour_vce : float
+        Collector-emitter voltage for contour map bias point (default: 2.0)
+    contour_quantities : list of str, optional
+        Quantities to dump. Default: ["potential", "doping", "electrons",
+        "holes", "e_field", "qfn", "qfp"]
 
     Returns
     -------
@@ -133,6 +149,11 @@ def create_bjt(
     ...     gummel_sweep=(0.0, 0.8, 0.05),
     ...     gummel_vce=2.0
     ... )
+    >>>
+    >>> # 2D contour maps
+    >>> sim = create_bjt(contour_maps=True, contour_vbe=0.7, contour_vce=2.0)
+    >>> result = sim.run()
+    >>> sim.plot_contour("pot_eq", title="Potential — Equilibrium", cbar_title="V")
     """
     is_npn = device_type.lower() == "npn"
     sim = Simulation(title=title or f"{'NPN' if is_npn else 'PNP'} BJT")
@@ -146,6 +167,8 @@ def create_bjt(
         conmob=conmob, fldmob=fldmob, title=title, log_iv=log_iv,
         iv_file=iv_file, log_bands_eq=log_bands_eq, vbe=vbe,
         vce_sweep=vce_sweep, gummel_sweep=gummel_sweep, gummel_vce=gummel_vce,
+        contour_maps=contour_maps, contour_vbe=contour_vbe,
+        contour_vce=contour_vce, contour_quantities=contour_quantities,
     )
 
     total_width = emitter_width + base_width + collector_width
@@ -195,8 +218,8 @@ def create_bjt(
     if log_iv:
         sim.add_log(Log(ivfile=iv_file))
 
-    # Only add solve commands if sweeps are specified
-    if vce_sweep is not None or gummel_sweep is not None or log_bands_eq:
+    # Only add solve commands if sweeps or contour maps are specified
+    if vce_sweep is not None or gummel_sweep is not None or log_bands_eq or contour_maps:
         # Always start with equilibrium solve
         sim.add_solve(Solve(initial=True, outfile="eq_sol"))
 
@@ -246,6 +269,63 @@ def create_bjt(
                 electrode=2,
                 outfile="gummel_sol"
             ))
+
+        # 2D contour maps (Plot3D scatter files)
+        if contour_maps:
+            quantities = contour_quantities or [
+                "potential", "doping", "electrons", "holes",
+                "e_field", "qfn", "qfp",
+            ]
+
+            # Map quantity names to Plot3D kwargs and output file suffixes
+            _qty_map = {
+                "potential":  ("potential",  "pot"),
+                "doping":     ("doping",     "dop"),
+                "electrons":  ("electrons",  "el"),
+                "holes":      ("holes",      "hh"),
+                "e_field":    ("e_field",    "ef"),
+                "qfn":        ("qfn",        "qfn"),
+                "qfp":        ("qfp",        "qfp"),
+                "band_val":   ("band_val",   "bv"),
+                "band_cond":  ("band_cond",  "bc"),
+                "net_charge": ("net_charge", "nch"),
+                "recomb":     ("recomb",     "rec"),
+            }
+
+            # Equilibrium dumps
+            for qty in quantities:
+                if qty not in _qty_map:
+                    continue
+                kwarg, suffix = _qty_map[qty]
+                extras = {"absolute": True} if qty == "doping" else {}
+                sim.add_command(Plot3D(**{kwarg: True}, outfile=f"{suffix}_eq", **extras))
+
+            # Bias solve for contour maps (only if no other sweep already applied bias)
+            if vce_sweep is None and gummel_sweep is None:
+                # Apply Vbe
+                if abs(contour_vbe) > 1e-10:
+                    sim.add_solve(Solve(
+                        previous=True, v2=contour_vbe,
+                        electrode=2, outfile="contour_vbe_set"
+                    ))
+                # Apply Vce in steps
+                if abs(contour_vce) > 1e-10:
+                    n_steps = max(1, int(abs(contour_vce) / 0.5))
+                    v_step = contour_vce / n_steps
+                    sim.add_solve(Solve(
+                        project=True, v3=0.0,
+                        vstep=v_step, nsteps=n_steps,
+                        electrode=3, outfile="contour_bias"
+                    ))
+
+            # Bias dumps
+            for qty in quantities:
+                if qty == "doping":
+                    continue  # doping doesn't change with bias
+                if qty not in _qty_map:
+                    continue
+                kwarg, suffix = _qty_map[qty]
+                sim.add_command(Plot3D(**{kwarg: True}, outfile=f"{suffix}_bias"))
 
     return sim
 

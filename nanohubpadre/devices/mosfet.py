@@ -2,7 +2,7 @@
 MOSFET factory function.
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from ..simulation import Simulation
 from ..mesh import Mesh
 from ..region import Region
@@ -12,6 +12,7 @@ from ..contact import Contact
 from ..models import Models
 from ..solver import System, Solve
 from ..log import Log
+from ..plot3d import Plot3D
 
 
 def create_mosfet(
@@ -45,6 +46,11 @@ def create_mosfet(
     vds: float = 0.0,
     vds_sweep: Optional[Tuple[float, float, float]] = None,
     vgs: float = 0.0,
+    # 2D contour map options
+    contour_maps: bool = False,
+    contour_vgs: float = 1.0,
+    contour_vds: float = 1.0,
+    contour_quantities: Optional[List[str]] = None,
 ) -> Simulation:
     """
     Create a MOSFET simulation.
@@ -102,6 +108,16 @@ def create_mosfet(
         Example: (0.0, 1.0, 0.05) sweeps Vd from 0V to 1.0V in 0.05V steps
     vgs : float
         Gate voltage for output characteristic (default: 0.0)
+    contour_maps : bool
+        If True, add Plot3D scatter file dumps at equilibrium and under bias
+        for 2D contour visualization (default: False)
+    contour_vgs : float
+        Gate voltage for contour map bias point (default: 1.0)
+    contour_vds : float
+        Drain voltage for contour map bias point (default: 1.0)
+    contour_quantities : list of str, optional
+        Quantities to dump. Default: ["potential", "doping", "electrons",
+        "holes", "e_field", "qfn", "qfp"]
 
     Returns
     -------
@@ -137,6 +153,8 @@ def create_mosfet(
         title=title, log_iv=log_iv, iv_file=iv_file, log_bands_eq=log_bands_eq,
         log_bands_bias=log_bands_bias, vgs_sweep=vgs_sweep, vds=vds,
         vds_sweep=vds_sweep, vgs=vgs,
+        contour_maps=contour_maps, contour_vgs=contour_vgs,
+        contour_vds=contour_vds, contour_quantities=contour_quantities,
     )
 
     # Calculate dimensions
@@ -210,8 +228,8 @@ def create_mosfet(
     if log_iv:
         sim.add_log(Log(ivfile=iv_file))
 
-    # Only add solve commands if sweeps are specified
-    if vgs_sweep is not None or vds_sweep is not None or log_bands_eq:
+    # Only add solve commands if sweeps, contour maps, or band logging are specified
+    if vgs_sweep is not None or vds_sweep is not None or log_bands_eq or contour_maps:
         # Always start with equilibrium solve
         sim.add_solve(Solve(initial=True, outfile="eq"))
 
@@ -279,6 +297,62 @@ def create_mosfet(
                     x_end=x_mid, y_end=total_height,
                     include_qf=True
                 )
+
+        # 2D contour maps (Plot3D scatter files)
+        if contour_maps:
+            quantities = contour_quantities or [
+                "potential", "doping", "electrons", "holes",
+                "e_field", "qfn", "qfp",
+            ]
+
+            _qty_map = {
+                "potential":  ("potential",  "pot"),
+                "doping":     ("doping",     "dop"),
+                "electrons":  ("electrons",  "el"),
+                "holes":      ("holes",      "hh"),
+                "e_field":    ("e_field",    "ef"),
+                "qfn":        ("qfn",        "qfn"),
+                "qfp":        ("qfp",        "qfp"),
+                "band_val":   ("band_val",   "bv"),
+                "band_cond":  ("band_cond",  "bc"),
+                "net_charge": ("net_charge", "nch"),
+                "recomb":     ("recomb",     "rec"),
+            }
+
+            # Equilibrium dumps
+            for qty in quantities:
+                if qty not in _qty_map:
+                    continue
+                kwarg, suffix = _qty_map[qty]
+                extras = {"absolute": True} if qty == "doping" else {}
+                sim.add_command(Plot3D(**{kwarg: True}, outfile=f"{suffix}_eq", **extras))
+
+            # Bias solve for contour maps (only if no other sweep already applied bias)
+            if vgs_sweep is None and vds_sweep is None:
+                # Apply Vgs (gate = electrode 3)
+                if abs(contour_vgs) > 1e-10:
+                    sim.add_solve(Solve(
+                        project=True, v3=contour_vgs,
+                        electrode=3, outfile="contour_vgs_set"
+                    ))
+                # Apply Vds in steps (drain = electrode 2)
+                if abs(contour_vds) > 1e-10:
+                    n_steps = max(1, int(abs(contour_vds) / 0.1))
+                    v_step = contour_vds / n_steps
+                    sim.add_solve(Solve(
+                        project=True, v2=0.0,
+                        vstep=v_step, nsteps=n_steps,
+                        electrode=2, outfile="contour_bias"
+                    ))
+
+            # Bias dumps
+            for qty in quantities:
+                if qty == "doping":
+                    continue
+                if qty not in _qty_map:
+                    continue
+                kwarg, suffix = _qty_map[qty]
+                sim.add_command(Plot3D(**{kwarg: True}, outfile=f"{suffix}_bias"))
 
     return sim
 
