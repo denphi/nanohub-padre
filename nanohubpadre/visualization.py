@@ -705,12 +705,17 @@ def _plotly_cmap_to_matplotlib(name: str) -> str:
     through unchanged.
     """
     import matplotlib.pyplot as plt
+    # Build set of known colormap names (works across matplotlib versions)
+    try:
+        known = set(plt.colormaps())  # matplotlib < 3.5 returns a list
+    except TypeError:
+        known = set(plt.colormaps)    # matplotlib >= 3.5 is a registry
     # If the name is already valid, use it directly
-    if name in plt.colormaps:
+    if name in known:
         return name
     # Try lowercase
     lower = name.lower()
-    if lower in plt.colormaps:
+    if lower in known:
         return lower
     # Return as-is and let matplotlib raise a clear error
     return name
