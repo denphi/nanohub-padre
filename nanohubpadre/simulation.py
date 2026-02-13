@@ -1696,6 +1696,54 @@ class Simulation:
             "Check that the simulation has the appropriate Plot1D commands."
         )
 
+    def plot_cv(self, normalize: bool = True, title: Optional[str] = None,
+               backend: Optional[str] = None, show: bool = True, **kwargs):
+        """
+        Plot C-V curves from AC log outputs.
+
+        Parameters
+        ----------
+        normalize : bool
+            If True plot C/Cox (default). If False plot raw capacitance.
+        title : str, optional
+            Plot title
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+
+        Returns
+        -------
+        Plot object
+        """
+        return self.outputs.plot_cv(
+            normalize=normalize, title=title, backend=backend, show=show, **kwargs
+        )
+
+    def plot_electrostatics(self, suffix: str = "", title: Optional[str] = None,
+                            backend: Optional[str] = None, show: bool = True, **kwargs):
+        """
+        Plot electrostatic potential and electric field profiles.
+
+        Parameters
+        ----------
+        suffix : str
+            Suffix to match output names (e.g. "eq" for equilibrium)
+        title : str, optional
+            Plot title
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+
+        Returns
+        -------
+        Plot object
+        """
+        return self.outputs.plot_electrostatics(
+            suffix=suffix, title=title, backend=backend, show=show, **kwargs
+        )
+
     def plot_contour(
         self,
         filename,

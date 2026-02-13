@@ -1056,6 +1056,197 @@ class OutputManager:
                 fig.show()
             return fig
 
+    def plot_cv(self, normalize: bool = True, title: Optional[str] = None,
+                backend: Optional[str] = None, show: bool = True,
+                **kwargs) -> Any:
+        """
+        Plot C-V curves from AC analysis outputs.
+
+        Parameters
+        ----------
+        normalize : bool
+            If True, plot C/Cox (normalized). If False, plot raw capacitance in F.
+        title : str, optional
+            Plot title
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        """
+        ac_data = self.get_ac_data()
+        if not ac_data:
+            raise ValueError("No C-V data found. Run simulation with log_cv=True.")
+
+        if backend is None:
+            backend = _get_default_backend()
+
+        if title is None:
+            title = "C-V Characteristics"
+
+        colors = ['blue', 'red', 'green', 'orange', 'purple']
+        label_map = {
+            'cv_hf': 'HF C-V (1 MHz)',
+            'cv_lf': 'LF C-V (1 Hz)',
+            'cv':    'C-V',
+            'cv_dg': 'Double-Gate C-V',
+        }
+
+        datasets = []
+        for name, data in ac_data.items():
+            vg, c = data.get_cv_data()
+            if len(vg) == 0:
+                continue
+            label = label_map.get(name, name)
+            cox = data.cox if hasattr(data, 'cox') and data.cox else None
+            datasets.append((vg, c, label, cox))
+
+        if not datasets:
+            raise ValueError("C-V data found but contains no data points.")
+
+        # Determine Cox for normalization from first dataset with valid data
+        cox_val = None
+        if normalize:
+            for _, c, _, cox in datasets:
+                if cox is not None:
+                    cox_val = cox
+                    break
+            if cox_val is None:
+                cox_val = max(c[0] for _, c, _, _ in datasets)
+
+        if backend == 'matplotlib':
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=kwargs.get('figsize', (8, 5)))
+            for i, (vg, c, label, _) in enumerate(datasets):
+                y = c / cox_val if normalize and cox_val else c
+                ax.plot(vg, y, color=colors[i % len(colors)], linewidth=2, label=label)
+            ax.set_xlabel('Gate Voltage Vg (V)')
+            ax.set_ylabel('C/Cox' if normalize else 'Capacitance (F)')
+            ax.set_title(title)
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            if show:
+                plt.show()
+            return ax
+        else:
+            import plotly.graph_objects as go
+            fig = go.Figure()
+            for i, (vg, c, label, _) in enumerate(datasets):
+                y = c / cox_val if normalize and cox_val else c
+                fig.add_trace(go.Scatter(x=vg, y=y, mode='lines',
+                    name=label, line=dict(color=colors[i % len(colors)], width=2)))
+            fig.update_layout(
+                title=title,
+                xaxis_title='Gate Voltage Vg (V)',
+                yaxis_title='C/Cox' if normalize else 'Capacitance (F)',
+                template='plotly_white',
+                width=kwargs.get('width', 700),
+                height=kwargs.get('height', 450),
+            )
+            if show:
+                fig.show()
+            return fig
+
+    def plot_electrostatics(self, suffix: str = "", title: Optional[str] = None,
+                            backend: Optional[str] = None, show: bool = True,
+                            **kwargs) -> Any:
+        """
+        Plot electrostatic potential and electric field side-by-side.
+
+        Parameters
+        ----------
+        suffix : str
+            Suffix to match output names (e.g. "eq" for pot_eq, ef_eq)
+        title : str, optional
+            Overall plot title
+        backend : str, optional
+            'matplotlib' or 'plotly'
+        show : bool
+            Display plot immediately
+        """
+        pot_data = None
+        ef_data = None
+
+        for name, entry in self._entries.items():
+            if entry.data is None:
+                continue
+            if suffix and suffix not in name:
+                continue
+            if entry.variable == 'potential':
+                pot_data = entry.data
+            elif entry.variable == 'e_field':
+                ef_data = entry.data
+
+        if pot_data is None and ef_data is None:
+            raise ValueError(
+                "No electrostatics data found. Run with log_profiles_eq=True or log_profiles_bias=True."
+            )
+
+        if backend is None:
+            backend = _get_default_backend()
+
+        if title is None:
+            title = "Electrostatics"
+            if suffix:
+                title += f" ({suffix})"
+
+        if backend == 'matplotlib':
+            import matplotlib.pyplot as plt
+            ncols = (1 if pot_data is None else 1) + (1 if ef_data is None else 1)
+            ncols = sum([pot_data is not None, ef_data is not None])
+            ncols = max(ncols, 1)
+            fig, axes = plt.subplots(1, ncols, figsize=kwargs.get('figsize', (6 * ncols, 5)))
+            if ncols == 1:
+                axes = [axes]
+            idx = 0
+            if pot_data is not None:
+                axes[idx].plot(pot_data.x, pot_data.y, color='green', linewidth=2)
+                axes[idx].set_xlabel('Depth (μm)')
+                axes[idx].set_ylabel('Potential (V)')
+                axes[idx].set_title('Electrostatic Potential')
+                axes[idx].grid(True, alpha=0.3)
+                idx += 1
+            if ef_data is not None:
+                axes[idx].plot(ef_data.x, ef_data.y, color='darkorange', linewidth=2)
+                axes[idx].set_xlabel('Depth (μm)')
+                axes[idx].set_ylabel('Electric Field (V/cm)')
+                axes[idx].set_title('Electric Field')
+                axes[idx].grid(True, alpha=0.3)
+            fig.suptitle(title)
+            plt.tight_layout()
+            if show:
+                plt.show()
+            return fig
+        else:
+            import plotly.graph_objects as go
+            from plotly.subplots import make_subplots
+            ncols = sum([pot_data is not None, ef_data is not None])
+            subtitles = []
+            if pot_data is not None:
+                subtitles.append('Electrostatic Potential')
+            if ef_data is not None:
+                subtitles.append('Electric Field')
+            fig = make_subplots(rows=1, cols=ncols, subplot_titles=subtitles)
+            col = 1
+            if pot_data is not None:
+                fig.add_trace(go.Scatter(x=pot_data.x, y=pot_data.y, mode='lines',
+                    line=dict(color='green', width=2), name='Potential'), row=1, col=col)
+                fig.update_yaxes(title_text='Potential (V)', row=1, col=col)
+                col += 1
+            if ef_data is not None:
+                fig.add_trace(go.Scatter(x=ef_data.x, y=ef_data.y, mode='lines',
+                    line=dict(color='darkorange', width=2), name='E-field'), row=1, col=col)
+                fig.update_yaxes(title_text='Electric Field (V/cm)', row=1, col=col)
+            fig.update_xaxes(title_text='Depth (μm)')
+            fig.update_layout(
+                title_text=title,
+                template='plotly_white',
+                width=kwargs.get('width', 900),
+                height=kwargs.get('height', 420),
+            )
+            if show:
+                fig.show()
+            return fig
+
     def summary(self) -> str:
         """
         Get a summary of all outputs.
