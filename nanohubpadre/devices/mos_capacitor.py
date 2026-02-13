@@ -56,6 +56,8 @@ def create_mos_capacitor(
     cv_lf_file: str = "cv_lf_data",
     log_bands_eq: bool = False,
     log_bands_bias: bool = False,
+    log_qf_eq: bool = False,
+    log_qf_bias: bool = False,
     log_profiles_eq: bool = False,
     log_profiles_bias: bool = False,
     # Voltage sweep options
@@ -134,6 +136,12 @@ def create_mos_capacitor(
         If True, log band diagrams at equilibrium (default: False)
     log_bands_bias : bool
         If True, log band diagrams at each bias point during sweep (default: False)
+    log_qf_eq : bool
+        If True, also log quasi-Fermi levels (Efn, Efp) at equilibrium
+        alongside the band diagram. Requires log_bands_eq=True or is added
+        automatically when True (default: False)
+    log_qf_bias : bool
+        If True, also log quasi-Fermi levels at each bias point (default: False)
     log_profiles_eq : bool
         If True, log carrier densities, potential, and electric field at
         equilibrium (default: False)
@@ -193,6 +201,7 @@ def create_mos_capacitor(
         title=title, log_cv=log_cv, cv_file=cv_file,
         log_cv_lf=log_cv_lf, cv_lf_file=cv_lf_file,
         log_bands_eq=log_bands_eq, log_bands_bias=log_bands_bias,
+        log_qf_eq=log_qf_eq, log_qf_bias=log_qf_bias,
         log_profiles_eq=log_profiles_eq, log_profiles_bias=log_profiles_bias,
         vg_sweep=vg_sweep, ac_frequency=ac_frequency,
         ac_frequency_lf=ac_frequency_lf,
@@ -283,7 +292,7 @@ def create_mos_capacitor(
     # Line cut for profiles: vertical through oxide and silicon at x = mid
     x_mid = device_width / 2
 
-    needs_solve = (vg_sweep is not None or log_bands_eq
+    needs_solve = (vg_sweep is not None or log_bands_eq or log_qf_eq
                    or log_profiles_eq or log_profiles_bias)
 
     if needs_solve:
@@ -291,11 +300,12 @@ def create_mos_capacitor(
         sim.add_solve(Solve(initial=True, outfile="eq"))
 
         # Equilibrium band diagram
-        if log_bands_eq:
+        if log_bands_eq or log_qf_eq:
             sim.log_band_diagram(
                 outfile_prefix="eq",
                 x_start=x_mid, x_end=x_mid,
-                y_start=0.0, y_end=total_thickness
+                y_start=0.0, y_end=total_thickness,
+                include_qf=log_qf_eq,
             )
 
         # Equilibrium profiles: carriers, potential, E-field
@@ -324,11 +334,12 @@ def create_mos_capacitor(
                 save=1 if (log_bands_bias or log_profiles_bias) else None,
             ))
 
-            if log_bands_bias:
+            if log_bands_bias or log_qf_bias:
                 sim.log_band_diagram(
                     outfile_prefix="bias",
                     x_start=x_mid, x_end=x_mid,
-                    y_start=0.0, y_end=total_thickness
+                    y_start=0.0, y_end=total_thickness,
+                    include_qf=log_qf_bias,
                 )
 
             if log_profiles_bias:
