@@ -1,7 +1,17 @@
 """
 Solar Cell factory function.
+
+.. warning::
+   This device is **experimental**.  PADRE is a transistor solver optimised
+   for µA–mA current ranges.  For a typical silicon solar cell (200 µm base,
+   ~10¹⁶ cm⁻³ doping) the dark saturation current I₀ is ~10⁻²⁰ A for a
+   1 µm × 1 µm cross-section — well below PADRE's floating-point resolution.
+   Terminal currents from the IV log are therefore numerical noise.
+   Band diagrams, carrier profiles, and electrostatic potential are still
+   computed correctly and can be used for qualitative analysis.
 """
 
+import warnings
 from typing import Optional, Tuple
 from ..simulation import Simulation
 from ..mesh import Mesh
@@ -124,6 +134,15 @@ def create_solar_cell(
     ... )
     >>> result = sim.run()
     """
+    warnings.warn(
+        "create_solar_cell() is experimental. "
+        "PADRE cannot resolve solar-cell dark currents (I₀ ~ 10⁻²⁰ A) with the "
+        "default 1 µm × 1 µm cross-section — IV log output will be numerical noise. "
+        "Band diagrams and carrier profiles are still valid.",
+        UserWarning,
+        stacklevel=2,
+    )
+
     is_n_on_p = device_type.lower() == "n_on_p"
     sim = Simulation(title=title or f"Solar Cell ({'N-on-P' if is_n_on_p else 'P-on-N'})")
     sim._device_type = "solar_cell"

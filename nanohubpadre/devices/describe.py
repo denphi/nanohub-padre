@@ -276,7 +276,7 @@ DEVICE_PARAMS = {
         ]),
     },
     "solar_cell": {
-        "summary": "Solar Cell (PN Junction)",
+        "summary": "Solar Cell (PN Junction) [EXPERIMENTAL — IV output unreliable, see warnings]",
         "factory": "create_solar_cell",
         "groups": OrderedDict([
             ("Geometry", [
