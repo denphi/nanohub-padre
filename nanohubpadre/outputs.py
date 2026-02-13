@@ -415,11 +415,18 @@ class OutputManager:
         if labels.get(variable):
             y_label = f"{labels[variable][0]} ({labels[variable][1]})"
 
+        # PADRE outputs band energies with opposite sign convention:
+        # band_val (Ev) is positive, band_con (Ec) is negative in the raw file.
+        # Negate to match physical convention: Ec > Ev (both in eV relative to reference).
+        y_array = np.array(y_vals)
+        if variable in ('band_val', 'band_con', 'qfn', 'qfp'):
+            y_array = -y_array
+
         return PlotData(
             name=entry.name,
             variable=variable,
             x=np.array(x_vals),
-            y=np.array(y_vals),
+            y=y_array,
             x_label="Position (μm)",
             y_label=y_label,
             logarithmic=logarithmic,
