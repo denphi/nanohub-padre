@@ -317,8 +317,9 @@ def create_mos_capacitor(
     if is_double:
         sim.add_interface(Interface(number=2, qf=oxide_qftrap))
 
-    # Models — srh matches Rappture reference deck
-    sim.models = Models(temperature=temperature, srh=True, conmob=conmob, fldmob=fldmob)
+    # Models — matches Rappture reference deck (includes print flag)
+    sim.models = Models(temperature=temperature, srh=True, conmob=conmob, fldmob=fldmob,
+                        print_models=True)
     sim.system = System(electrons=True, holes=True, newton=True)
 
     # C-V logging (high frequency) — issued before the HF sweep
