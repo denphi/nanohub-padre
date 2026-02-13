@@ -799,6 +799,10 @@ class Simulation:
         for electrode in self._electrodes:
             lines.append(electrode.to_padre())
 
+        # Surfaces (must come after electrodes, before doping — PADRE ordering)
+        for surface in self._surfaces:
+            lines.append(surface.to_padre())
+
         # Doping
         for doping in self._dopings:
             lines.append(doping.to_padre())
@@ -814,10 +818,6 @@ class Simulation:
         # Interfaces
         for interface in self._interfaces:
             lines.append(interface.to_padre())
-
-        # Surfaces
-        for surface in self._surfaces:
-            lines.append(surface.to_padre())
 
         # Contacts
         for contact in self._contacts:
