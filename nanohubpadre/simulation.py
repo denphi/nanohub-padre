@@ -1037,6 +1037,21 @@ class Simulation:
             with open(output_path, 'w') as f:
                 f.write(result.stdout)
 
+        # PADRE sometimes exits 0 even after aborting — check stdout for abort message
+        padre_aborted = (
+            result.returncode == 0
+            and result.stdout
+            and "PADRE Aborted" in result.stdout
+        )
+        if padre_aborted:
+            # Treat as failure so callers see returncode != 0
+            result = result.__class__(
+                args=result.args,
+                returncode=1,
+                stdout=result.stdout,
+                stderr=result.stderr or "",
+            )
+
         # Automatically load outputs after successful run
         if result.returncode == 0:
             self._load_outputs()

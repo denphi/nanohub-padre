@@ -219,12 +219,12 @@ def create_mos_capacitor(
     # Mesh
     sim.mesh = Mesh(nx=nx, ny=total_ny)
     sim.mesh.add_y_mesh(1, 0, ratio=1)
-    sim.mesh.add_y_mesh(ny_oxide, oxide_thickness, ratio=0.8)
+    sim.mesh.add_y_mesh(ny_oxide, oxide_thickness, ratio=0.9)
     if is_double:
-        sim.mesh.add_y_mesh(ny_oxide + ny_silicon, oxide_thickness + silicon_thickness, ratio=1.25)
-        sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.25)
+        sim.mesh.add_y_mesh(ny_oxide + ny_silicon, oxide_thickness + silicon_thickness, ratio=1.05)
+        sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.05)
     else:
-        sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.25)
+        sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.05)
     sim.mesh.add_x_mesh(1, 0, ratio=1)
     sim.mesh.add_x_mesh(nx, device_width, ratio=1)
 
