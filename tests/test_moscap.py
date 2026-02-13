@@ -77,7 +77,7 @@ class TestMOSCAP(unittest.TestCase):
         """Test AC analysis setup."""
         self.assertIn("ac.analysis", self.deck)
         self.assertIn("freq=", self.deck)
-        self.assertIn("log acf=ac", self.deck)
+        self.assertIn("log acfile=ac", self.deck)
 
     def test_log_off(self):
         """Test log off command."""

@@ -207,62 +207,70 @@ def create_mos_capacitor(
         ac_frequency_lf=ac_frequency_lf,
     )
 
-    # Transition zone near oxide-silicon interface (0.02 um thick) to avoid
-    # obtuse mesh elements — matches Rappture reference deck pattern.
-    ny_transition = max(2, ny_oxide // 5)
-
     if is_double:
-        ny_back_oxide = ny_oxide  # same mesh density for back oxide
-        total_ny = ny_oxide + ny_transition + ny_silicon + ny_back_oxide
+        # Double-gate mesh mirrors Rappture's 4-segment approach:
+        #   top oxide → silicon (expanding) → silicon (compressing) → back oxide
+        # This naturally densifies near both oxide-silicon interfaces.
+        ny_back_oxide = ny_oxide
+        ny_si_half = ny_silicon // 2
+        total_ny = ny_oxide + ny_silicon + ny_back_oxide
         total_thickness = oxide_thickness + silicon_thickness + back_oxide_thickness
-        ny_si_end = ny_oxide + ny_transition + ny_silicon
+        ny_si_start = ny_oxide               # top oxide-silicon boundary
+        ny_si_mid   = ny_oxide + ny_si_half  # silicon midplane
+        ny_si_end   = ny_oxide + ny_silicon  # silicon-back oxide boundary
+
+        sim.mesh = Mesh(nx=nx, ny=total_ny)
+        sim.mesh.add_y_mesh(1, 0, ratio=1)
+        sim.mesh.add_y_mesh(ny_oxide, oxide_thickness, ratio=0.9)
+        sim.mesh.add_y_mesh(ny_si_mid, oxide_thickness + silicon_thickness / 2, ratio=1.1)
+        sim.mesh.add_y_mesh(ny_si_end, oxide_thickness + silicon_thickness, ratio=0.9)
+        sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.0)
     else:
+        # Single-gate: transition zone near interface matches Rappture 5-segment mesh
+        transition_width = min(0.02, silicon_thickness * 0.1)
+        ny_transition = max(2, ny_oxide // 5)
         total_ny = ny_oxide + ny_transition + ny_silicon
         total_thickness = oxide_thickness + silicon_thickness
+        ny_mid_oxide = max(1, ny_oxide // 2)
+        transition_end = oxide_thickness + transition_width
 
-    # Mesh — 5-point y specification mirroring Rappture reference deck:
-    #   1) Start at 0
-    #   2) Mid-oxide with ratio=1 (uniform oxide mesh)
-    #   3) Oxide-silicon interface with ratio=0.8 (compress toward interface)
-    #   4) Short transition zone past the interface with ratio=1 (decompress)
-    #   5) Silicon bulk with ratio=1.05 (gently expanding mesh)
-    ny_mid_oxide = max(1, ny_oxide // 2)
-    transition_thickness = oxide_thickness + 0.02  # 20 nm past the interface
+        sim.mesh = Mesh(nx=nx, ny=total_ny)
+        sim.mesh.add_y_mesh(1, 0, ratio=1)
+        sim.mesh.add_y_mesh(ny_mid_oxide, oxide_thickness / 2, ratio=1)
+        sim.mesh.add_y_mesh(ny_oxide, oxide_thickness, ratio=0.8)
+        sim.mesh.add_y_mesh(ny_oxide + ny_transition, transition_end, ratio=1)
+        sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.05)
 
-    sim.mesh = Mesh(nx=nx, ny=total_ny)
-    sim.mesh.add_y_mesh(1, 0, ratio=1)
-    sim.mesh.add_y_mesh(ny_mid_oxide, oxide_thickness / 2, ratio=1)
-    sim.mesh.add_y_mesh(ny_oxide, oxide_thickness, ratio=0.8)
-    sim.mesh.add_y_mesh(ny_oxide + ny_transition, transition_thickness, ratio=1)
-    if is_double:
-        sim.mesh.add_y_mesh(ny_si_end, oxide_thickness + silicon_thickness, ratio=1.05)
-        sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.05)
-    else:
-        sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.05)
     sim.mesh.add_x_mesh(1, 0, ratio=1)
     sim.mesh.add_x_mesh(nx, device_width, ratio=1)
 
     # Regions
-    sim.add_region(Region(1, ix_low=1, ix_high=nx, iy_low=1, iy_high=ny_oxide,
-                          material="sio2", insulator=True))
     if is_double:
-        sim.add_region(Region(2, ix_low=1, ix_high=nx, iy_low=ny_oxide, iy_high=ny_si_end,
+        sim.add_region(Region(1, ix_low=1, ix_high=nx, iy_low=1, iy_high=ny_si_start,
+                              material="sio2.1", insulator=True))
+        sim.add_region(Region(2, ix_low=1, ix_high=nx, iy_low=ny_si_start, iy_high=ny_si_end,
                               material="silicon", semiconductor=True))
         sim.add_region(Region(3, ix_low=1, ix_high=nx, iy_low=ny_si_end, iy_high=total_ny,
-                              material="sio2", insulator=True))
+                              material="sio2.2", insulator=True))
     else:
+        sim.add_region(Region(1, ix_low=1, ix_high=nx, iy_low=1, iy_high=ny_oxide,
+                              material="sio2", insulator=True))
         sim.add_region(Region(2, ix_low=1, ix_high=nx, iy_low=ny_oxide, iy_high=total_ny,
                               material="silicon", semiconductor=True))
-
-    # Surface interface between oxide (region 1) and silicon (region 2) —
-    # matches Rappture: "surface interface num=1 reg1=1 reg2=2"
-    sim.add_surface(Surface(number=1, interface=True, reg1=1, reg2=2,
-                            x_min=0, x_max=device_width,
-                            y_min=oxide_thickness, y_max=oxide_thickness))
 
     # Electrodes: electrode 1 = top gate, electrode 2 = back contact / bottom gate
     sim.add_electrode(Electrode(1, ix_low=1, ix_high=nx, iy_low=1, iy_high=1))       # Top gate
     sim.add_electrode(Electrode(2, ix_low=1, ix_high=nx, iy_low=total_ny, iy_high=total_ny))  # Back
+
+    # Surface interface(s) between oxide and silicon — after electrodes, before doping
+    sim.add_surface(Surface(number=1, interface=True, reg1=1, reg2=2,
+                            x_min=0, x_max=device_width,
+                            y_min=oxide_thickness, y_max=oxide_thickness))
+    if is_double:
+        back_interface_y = oxide_thickness + silicon_thickness
+        sim.add_surface(Surface(number=2, interface=True, reg1=2, reg2=3,
+                                x_min=0, x_max=device_width,
+                                y_min=back_interface_y, y_max=back_interface_y))
 
     # Doping
     p_type = substrate_type.lower() == "p"
@@ -294,11 +302,17 @@ def create_mos_capacitor(
 
     # Materials — include carrier lifetimes
     sim.add_material(Material(name="silicon", taun0=taun0, taup0=taup0))
-    sim.add_material(Material(name="sio2", permittivity=oxide_permittivity, qf=oxide_qf))
+    if is_double:
+        sim.add_material(Material(name="sio2.1", permittivity=oxide_permittivity, qf=oxide_qf))
+        sim.add_material(Material(name="sio2.2", permittivity=oxide_permittivity, qf=oxide_qf))
+    else:
+        sim.add_material(Material(name="sio2", permittivity=oxide_permittivity, qf=oxide_qf))
 
-    # Interface trap charge at oxide-semiconductor interface (interface 1)
+    # Interface trap charge at oxide-semiconductor interface(s)
     if oxide_qftrap != 0:
         sim.add_interface(Interface(number=1, qf=oxide_qftrap))
+        if is_double:
+            sim.add_interface(Interface(number=2, qf=oxide_qftrap))
 
     # Models — srh matches Rappture reference deck
     sim.models = Models(temperature=temperature, srh=True, conmob=conmob, fldmob=fldmob)
