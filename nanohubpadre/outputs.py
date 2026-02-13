@@ -210,6 +210,25 @@ class OutputManager:
     def register(self, name: str, output_type: OutputType,
                  command: Any = None, variable: str = "") -> None:
         """Register an expected output."""
+        # Priority: AC_DATA and IV_DATA take precedence over SOLUTION to avoid
+        # collision when a Solve outfile has the same name as a Log acfile/ivfile.
+        _priority = {
+            OutputType.AC_DATA: 3,
+            OutputType.IV_DATA: 3,
+            OutputType.PLOT_1D: 2,
+            OutputType.PLOT_2D: 2,
+            OutputType.SOLUTION: 1,
+            OutputType.MESH: 1,
+        }
+        if name in self._entries:
+            existing = self._entries[name]
+            if _priority.get(existing.output_type, 0) >= _priority.get(output_type, 0):
+                return  # keep the higher-priority entry
+            # Remove old entry from by_type list before overwriting
+            old_list = self._by_type.get(existing.output_type, [])
+            if name in old_list:
+                old_list.remove(name)
+
         entry = OutputEntry(
             name=name,
             output_type=output_type,
@@ -222,7 +241,8 @@ class OutputManager:
         if variable:
             if variable not in self._by_variable:
                 self._by_variable[variable] = []
-            self._by_variable[variable].append(name)
+            if name not in self._by_variable[variable]:
+                self._by_variable[variable].append(name)
 
     def list(self, output_type: Optional[OutputType] = None) -> List[str]:
         """
