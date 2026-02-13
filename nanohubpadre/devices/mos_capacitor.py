@@ -9,7 +9,7 @@ from ..region import Region
 from ..electrode import Electrode
 from ..doping import Doping
 from ..contact import Contact
-from ..interface import Interface
+from ..interface import Interface, Surface
 from ..material import Material
 from ..models import Models
 from ..solver import System, Solve
@@ -207,21 +207,35 @@ def create_mos_capacitor(
         ac_frequency_lf=ac_frequency_lf,
     )
 
+    # Transition zone near oxide-silicon interface (0.02 um thick) to avoid
+    # obtuse mesh elements — matches Rappture reference deck pattern.
+    ny_transition = max(2, ny_oxide // 5)
+
     if is_double:
         ny_back_oxide = ny_oxide  # same mesh density for back oxide
-        total_ny = ny_oxide + ny_silicon + ny_back_oxide
+        total_ny = ny_oxide + ny_transition + ny_silicon + ny_back_oxide
         total_thickness = oxide_thickness + silicon_thickness + back_oxide_thickness
-        ny_si_end = ny_oxide + ny_silicon
+        ny_si_end = ny_oxide + ny_transition + ny_silicon
     else:
-        total_ny = ny_oxide + ny_silicon
+        total_ny = ny_oxide + ny_transition + ny_silicon
         total_thickness = oxide_thickness + silicon_thickness
 
-    # Mesh
+    # Mesh — 5-point y specification mirroring Rappture reference deck:
+    #   1) Start at 0
+    #   2) Mid-oxide with ratio=1 (uniform oxide mesh)
+    #   3) Oxide-silicon interface with ratio=0.8 (compress toward interface)
+    #   4) Short transition zone past the interface with ratio=1 (decompress)
+    #   5) Silicon bulk with ratio=1.05 (gently expanding mesh)
+    ny_mid_oxide = max(1, ny_oxide // 2)
+    transition_thickness = oxide_thickness + 0.02  # 20 nm past the interface
+
     sim.mesh = Mesh(nx=nx, ny=total_ny)
     sim.mesh.add_y_mesh(1, 0, ratio=1)
-    sim.mesh.add_y_mesh(ny_oxide, oxide_thickness, ratio=0.9)
+    sim.mesh.add_y_mesh(ny_mid_oxide, oxide_thickness / 2, ratio=1)
+    sim.mesh.add_y_mesh(ny_oxide, oxide_thickness, ratio=0.8)
+    sim.mesh.add_y_mesh(ny_oxide + ny_transition, transition_thickness, ratio=1)
     if is_double:
-        sim.mesh.add_y_mesh(ny_oxide + ny_silicon, oxide_thickness + silicon_thickness, ratio=1.05)
+        sim.mesh.add_y_mesh(ny_si_end, oxide_thickness + silicon_thickness, ratio=1.05)
         sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.05)
     else:
         sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.05)
@@ -239,6 +253,12 @@ def create_mos_capacitor(
     else:
         sim.add_region(Region(2, ix_low=1, ix_high=nx, iy_low=ny_oxide, iy_high=total_ny,
                               material="silicon", semiconductor=True))
+
+    # Surface interface between oxide (region 1) and silicon (region 2) —
+    # matches Rappture: "surface interface num=1 reg1=1 reg2=2"
+    sim.add_surface(Surface(number=1, interface=True, reg1=1, reg2=2,
+                            x_min=0, x_max=device_width,
+                            y_min=oxide_thickness, y_max=oxide_thickness))
 
     # Electrodes: electrode 1 = top gate, electrode 2 = back contact / bottom gate
     sim.add_electrode(Electrode(1, ix_low=1, ix_high=nx, iy_low=1, iy_high=1))       # Top gate
@@ -280,8 +300,8 @@ def create_mos_capacitor(
     if oxide_qftrap != 0:
         sim.add_interface(Interface(number=1, qf=oxide_qftrap))
 
-    # Models
-    sim.models = Models(temperature=temperature, conmob=conmob, fldmob=fldmob)
+    # Models — srh matches Rappture reference deck
+    sim.models = Models(temperature=temperature, srh=True, conmob=conmob, fldmob=fldmob)
     sim.system = System(electrons=True, holes=True, newton=True)
 
     # C-V logging (high frequency) — issued before the HF sweep
