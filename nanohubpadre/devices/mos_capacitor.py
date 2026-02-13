@@ -36,6 +36,10 @@ def create_mos_capacitor(
     fldmob: bool = True,
     # Gate contact
     gate_type: str = "n_poly",
+    # Gate configuration
+    gate_config: str = "single",
+    back_oxide_thickness: float = 0.002,
+    back_gate_type: str = "n_poly",
     # Simulation options
     title: Optional[str] = None,
     # Output logging options
@@ -82,6 +86,15 @@ def create_mos_capacitor(
         Enable field-dependent mobility (default: True)
     gate_type : str
         Gate contact type: "n_poly", "p_poly", or "metal" (default: "n_poly")
+    gate_config : str
+        Gate configuration: "single" (one top gate + ohmic back contact) or
+        "double" (symmetric gate-oxide-Si-oxide-gate stack). (default: "single")
+    back_oxide_thickness : float
+        Bottom oxide thickness in microns for double-gate configuration (default: 0.002).
+        Only used when gate_config="double".
+    back_gate_type : str
+        Bottom gate contact type for double-gate: "n_poly", "p_poly", or "metal"
+        (default: "n_poly"). Only used when gate_config="double".
     title : str, optional
         Simulation title
     log_cv : bool
@@ -118,7 +131,8 @@ def create_mos_capacitor(
     ... )
     >>> result = sim.run()
     """
-    sim = Simulation(title=title or "MOS Capacitor")
+    is_double = gate_config.lower() == "double"
+    sim = Simulation(title=title or ("Double-Gate MOS Capacitor" if is_double else "MOS Capacitor"))
     sim._device_type = "mos_capacitor"
     sim._device_kwargs = dict(
         oxide_thickness=oxide_thickness, silicon_thickness=silicon_thickness,
@@ -126,35 +140,54 @@ def create_mos_capacitor(
         nx=nx, substrate_doping=substrate_doping, substrate_type=substrate_type,
         oxide_permittivity=oxide_permittivity, oxide_qf=oxide_qf,
         temperature=temperature, conmob=conmob, fldmob=fldmob,
-        gate_type=gate_type, title=title, log_cv=log_cv, cv_file=cv_file,
+        gate_type=gate_type, gate_config=gate_config,
+        back_oxide_thickness=back_oxide_thickness, back_gate_type=back_gate_type,
+        title=title, log_cv=log_cv, cv_file=cv_file,
         log_bands_eq=log_bands_eq, log_bands_bias=log_bands_bias,
         vg_sweep=vg_sweep, ac_frequency=ac_frequency,
     )
 
-    total_ny = ny_oxide + ny_silicon
-    total_thickness = oxide_thickness + silicon_thickness
+    if is_double:
+        ny_back_oxide = ny_oxide  # same mesh density for back oxide
+        total_ny = ny_oxide + ny_silicon + ny_back_oxide
+        total_thickness = oxide_thickness + silicon_thickness + back_oxide_thickness
+        ny_si_end = ny_oxide + ny_silicon
+    else:
+        total_ny = ny_oxide + ny_silicon
+        total_thickness = oxide_thickness + silicon_thickness
 
     # Mesh
     sim.mesh = Mesh(nx=nx, ny=total_ny)
     sim.mesh.add_y_mesh(1, 0, ratio=1)
     sim.mesh.add_y_mesh(ny_oxide, oxide_thickness, ratio=0.8)
-    sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.25)
+    if is_double:
+        sim.mesh.add_y_mesh(ny_oxide + ny_silicon, oxide_thickness + silicon_thickness, ratio=1.25)
+        sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.25)
+    else:
+        sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.25)
     sim.mesh.add_x_mesh(1, 0, ratio=1)
     sim.mesh.add_x_mesh(nx, device_width, ratio=1)
 
     # Regions
     sim.add_region(Region(1, ix_low=1, ix_high=nx, iy_low=1, iy_high=ny_oxide,
                           material="sio2", insulator=True))
-    sim.add_region(Region(2, ix_low=1, ix_high=nx, iy_low=ny_oxide, iy_high=total_ny,
-                          material="silicon", semiconductor=True))
+    if is_double:
+        sim.add_region(Region(2, ix_low=1, ix_high=nx, iy_low=ny_oxide, iy_high=ny_si_end,
+                              material="silicon", semiconductor=True))
+        sim.add_region(Region(3, ix_low=1, ix_high=nx, iy_low=ny_si_end, iy_high=total_ny,
+                              material="sio2", insulator=True))
+    else:
+        sim.add_region(Region(2, ix_low=1, ix_high=nx, iy_low=ny_oxide, iy_high=total_ny,
+                              material="silicon", semiconductor=True))
 
-    # Electrodes
-    sim.add_electrode(Electrode(1, ix_low=1, ix_high=nx, iy_low=1, iy_high=1))  # Gate
+    # Electrodes: electrode 1 = top gate, electrode 2 = back contact / bottom gate
+    sim.add_electrode(Electrode(1, ix_low=1, ix_high=nx, iy_low=1, iy_high=1))       # Top gate
     sim.add_electrode(Electrode(2, ix_low=1, ix_high=nx, iy_low=total_ny, iy_high=total_ny))  # Back
 
     # Doping
     p_type = substrate_type.lower() == "p"
-    sim.add_doping(Doping(region=2, p_type=p_type, n_type=not p_type,
+    si_region = 2
+    sim.add_doping(Doping(region=si_region, p_type=p_type, n_type=not p_type,
                           concentration=substrate_doping, uniform=True))
 
     # Contacts
@@ -163,7 +196,14 @@ def create_mos_capacitor(
         sim.add_contact(Contact(number=1, n_polysilicon=True))
     elif gate_type == "p_poly":
         sim.add_contact(Contact(number=1, p_polysilicon=True))
-    # else: use neutral (metal-like)
+    # else: use neutral (metal-like) for electrode 1
+
+    if is_double:
+        if back_gate_type == "n_poly":
+            sim.add_contact(Contact(number=2, n_polysilicon=True))
+        elif back_gate_type == "p_poly":
+            sim.add_contact(Contact(number=2, p_polysilicon=True))
+        # else: neutral (metal-like) for electrode 2
 
     # Materials
     sim.add_material(Material(name="silicon"))

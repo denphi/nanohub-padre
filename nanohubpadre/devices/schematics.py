@@ -422,18 +422,23 @@ def draw_mesfet(channel_length=0.2, gate_length=0.2, device_width=0.6,
 
 def draw_mos_capacitor(oxide_thickness=0.002, silicon_thickness=0.03,
                        device_width=1.0, substrate_doping=1e18,
-                       substrate_type="p", gate_type="n_poly", **kwargs):
+                       substrate_type="p", gate_type="n_poly",
+                       gate_config="single", back_oxide_thickness=0.002,
+                       back_gate_type="n_poly", **kwargs):
     """Draw MOS Capacitor cross-section based on user parameters."""
+    is_double = gate_config.lower() == "double"
     margin = 60
     elec_h = 22
     dw = 300
-    top = margin + elec_h + 5
     left = margin + 90  # center it
 
-    total = oxide_thickness + silicon_thickness
+    total_phys = oxide_thickness + silicon_thickness + (back_oxide_thickness if is_double else 0)
     dh_total = 200
-    ox_h = max(25, dh_total * oxide_thickness / total)
-    si_h = dh_total - ox_h
+    ox_h = max(20, int(dh_total * oxide_thickness / total_phys))
+    back_ox_h = max(20, int(dh_total * back_oxide_thickness / total_phys)) if is_double else 0
+    si_h = dh_total - ox_h - back_ox_h
+
+    top = margin + elec_h + 5
 
     is_p = substrate_type.lower() == "p"
     si_fill = COLORS["p_light"] if is_p else COLORS["n_light"]
@@ -441,14 +446,16 @@ def draw_mos_capacitor(oxide_thickness=0.002, silicon_thickness=0.03,
     si_tc = "#993333" if is_p else "#336699"
 
     gate_label = {"n_poly": "N+ Poly", "p_poly": "P+ Poly"}.get(gate_type, "Metal")
+    back_label = {"n_poly": "N+ Poly", "p_poly": "P+ Poly"}.get(back_gate_type, "Metal")
+    title_str = "Double-Gate MOS Capacitor" if is_double else "MOS Capacitor"
 
     parts = []
-    parts.append(_svg_text(left + dw / 2, 20, "MOS Capacitor", size=16, bold=True))
+    parts.append(_svg_text(left + dw / 2, 20, title_str, size=16, bold=True))
 
-    # Gate electrode
-    parts.append(_svg_electrode(left, top - elec_h, dw, elec_h, f"Gate ({gate_label})"))
+    # Top gate electrode
+    parts.append(_svg_electrode(left, top - elec_h, dw, elec_h, f"Gate 1 ({gate_label})" if is_double else f"Gate ({gate_label})"))
 
-    # Oxide
+    # Top oxide
     parts.append(_svg_rect(left, top, dw, ox_h, fill=COLORS["oxide"], stroke=COLORS["border"]))
     parts.append(_svg_text(left + dw / 2, top + ox_h / 2 + 4, "SiO2", size=12, bold=True, color="#999900"))
 
@@ -459,17 +466,29 @@ def draw_mos_capacitor(oxide_thickness=0.002, silicon_thickness=0.03,
     parts.append(_svg_text(left + dw / 2, top + ox_h + si_h / 2 + 12,
                            _fmt_doping(substrate_doping), size=11, color=si_tc))
 
-    # Back contact
-    parts.append(_svg_electrode(left, top + ox_h + si_h, dw, elec_h, "Back Contact"))
-
-    # Dimensions
-    parts.append(_svg_arrow_v(left - 15, top, top + ox_h, label=_fmt_dim(oxide_thickness), side="left"))
-    parts.append(_svg_arrow_v(left - 15, top + ox_h, top + ox_h + si_h,
-                              label=_fmt_dim(silicon_thickness), side="left"))
-    parts.append(_svg_arrow_h(left, left + dw, top + ox_h + si_h + elec_h + 15,
-                              label=_fmt_dim(device_width)))
-
-    return _wrap_svg("\n".join(parts), width=560, height=top + ox_h + si_h + elec_h + 45)
+    if is_double:
+        # Bottom oxide
+        back_y = top + ox_h + si_h
+        parts.append(_svg_rect(left, back_y, dw, back_ox_h, fill=COLORS["oxide"], stroke=COLORS["border"]))
+        parts.append(_svg_text(left + dw / 2, back_y + back_ox_h / 2 + 4, "SiO2", size=12, bold=True, color="#999900"))
+        # Bottom gate electrode
+        parts.append(_svg_electrode(left, back_y + back_ox_h, dw, elec_h, f"Gate 2 ({back_label})"))
+        # Dimension arrows
+        parts.append(_svg_arrow_v(left - 15, top, top + ox_h, label=_fmt_dim(oxide_thickness), side="left"))
+        parts.append(_svg_arrow_v(left - 15, top + ox_h, top + ox_h + si_h, label=_fmt_dim(silicon_thickness), side="left"))
+        parts.append(_svg_arrow_v(left - 15, top + ox_h + si_h, back_y + back_ox_h, label=_fmt_dim(back_oxide_thickness), side="left"))
+        parts.append(_svg_arrow_h(left, left + dw, back_y + back_ox_h + elec_h + 15, label=_fmt_dim(device_width)))
+        return _wrap_svg("\n".join(parts), width=560, height=top + ox_h + si_h + back_ox_h + elec_h + 45)
+    else:
+        # Back contact
+        parts.append(_svg_electrode(left, top + ox_h + si_h, dw, elec_h, "Back Contact"))
+        # Dimension arrows
+        parts.append(_svg_arrow_v(left - 15, top, top + ox_h, label=_fmt_dim(oxide_thickness), side="left"))
+        parts.append(_svg_arrow_v(left - 15, top + ox_h, top + ox_h + si_h,
+                                  label=_fmt_dim(silicon_thickness), side="left"))
+        parts.append(_svg_arrow_h(left, left + dw, top + ox_h + si_h + elec_h + 15,
+                                  label=_fmt_dim(device_width)))
+        return _wrap_svg("\n".join(parts), width=560, height=top + ox_h + si_h + elec_h + 45)
 
 
 def draw_schottky_diode(length=2.0, width=1.0, doping=1e16,

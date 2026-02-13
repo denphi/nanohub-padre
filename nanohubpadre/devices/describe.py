@@ -211,7 +211,10 @@ DEVICE_PARAMS = {
                 ("oxide_qf", "float", 0, "cm^-2", "Fixed oxide charge density"),
             ]),
             ("Contact", [
-                ("gate_type", "str", "n_poly", "", "Gate type: 'n_poly', 'p_poly', or 'metal'"),
+                ("gate_type", "str", "n_poly", "", "Top gate type: 'n_poly', 'p_poly', or 'metal'"),
+                ("gate_config", "str", "single", "", "Gate configuration: 'single' or 'double'"),
+                ("back_oxide_thickness", "float", 0.002, "um", "Bottom oxide thickness (double-gate only)"),
+                ("back_gate_type", "str", "n_poly", "", "Bottom gate type: 'n_poly', 'p_poly', or 'metal' (double-gate only)"),
             ]),
             ("Physical Models", [
                 ("temperature", "float", 300, "K", "Simulation temperature"),
