@@ -168,7 +168,7 @@ class TestMOSCAP(unittest.TestCase):
         """Test material specifications."""
         self.assertIn("material name=silicon", self.deck)
         self.assertIn("material name=sio2", self.deck)
-        self.assertIn("permittivity=3.9", self.deck)
+        self.assertIn("permi=3.9", self.deck)
         self.assertIn("qf=0", self.deck)
 
     def test_models(self):

@@ -411,7 +411,7 @@ class Material(PadreCommand):
 
         # Constants
         if self.permittivity is not None:
-            params["PERMITTIVITY"] = self.permittivity
+            params["PERMI"] = self.permittivity
         if self.qf is not None:
             params["QF"] = self.qf
         if self.nc300 is not None:

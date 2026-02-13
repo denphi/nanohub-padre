@@ -226,19 +226,22 @@ def create_mos_capacitor(
         sim.mesh.add_y_mesh(ny_si_end, oxide_thickness + silicon_thickness, ratio=0.9)
         sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.0)
     else:
-        # Single-gate: transition zone near interface matches Rappture 5-segment mesh
-        transition_width = min(0.02, silicon_thickness * 0.1)
-        ny_transition = max(2, ny_oxide // 5)
-        total_ny = ny_oxide + ny_transition + ny_silicon
+        # Single-gate: matches Rappture's 5-point mesh exactly.
+        # Silicon is split into a near-interface zone (ny_oxide nodes, 0.02 µm)
+        # and a bulk zone (ny_silicon nodes), giving total = ny_oxide + ny_silicon nodes.
+        # Cap the near-interface width at 10% of silicon thickness for thin bodies.
+        near_interface_width = min(0.02, silicon_thickness * 0.1)
+        ny_near = ny_oxide           # same count as oxide nodes (Rappture convention)
+        total_ny = ny_oxide + ny_silicon
         total_thickness = oxide_thickness + silicon_thickness
         ny_mid_oxide = max(1, ny_oxide // 2)
-        transition_end = oxide_thickness + transition_width
+        near_end = oxide_thickness + near_interface_width
 
         sim.mesh = Mesh(nx=nx, ny=total_ny)
         sim.mesh.add_y_mesh(1, 0, ratio=1)
         sim.mesh.add_y_mesh(ny_mid_oxide, oxide_thickness / 2, ratio=1)
         sim.mesh.add_y_mesh(ny_oxide, oxide_thickness, ratio=0.8)
-        sim.mesh.add_y_mesh(ny_oxide + ny_transition, transition_end, ratio=1)
+        sim.mesh.add_y_mesh(ny_oxide + ny_near, near_end, ratio=1)
         sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.05)
 
     sim.mesh.add_x_mesh(1, 0, ratio=1)
@@ -308,11 +311,11 @@ def create_mos_capacitor(
     else:
         sim.add_material(Material(name="sio2", permittivity=oxide_permittivity, qf=oxide_qf))
 
-    # Interface trap charge at oxide-semiconductor interface(s)
-    if oxide_qftrap != 0:
-        sim.add_interface(Interface(number=1, qf=oxide_qftrap))
-        if is_double:
-            sim.add_interface(Interface(number=2, qf=oxide_qftrap))
+    # Interface trap charge at oxide-semiconductor interface(s).
+    # Always emit "interface num=N qf=..." — Rappture always includes this line.
+    sim.add_interface(Interface(number=1, qf=oxide_qftrap))
+    if is_double:
+        sim.add_interface(Interface(number=2, qf=oxide_qftrap))
 
     # Models — srh matches Rappture reference deck
     sim.models = Models(temperature=temperature, srh=True, conmob=conmob, fldmob=fldmob)
