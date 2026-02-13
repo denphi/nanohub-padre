@@ -22,8 +22,8 @@ def create_mos_capacitor(
     silicon_thickness: float = 0.03,
     device_width: float = 1.0,
     # Mesh parameters
-    ny_oxide: int = 10,
-    ny_silicon: int = 20,
+    ny_oxide: int = 100,
+    ny_silicon: int = 200,
     nx: int = 3,
     # Doping parameters
     substrate_doping: float = 1e18,
@@ -79,9 +79,9 @@ def create_mos_capacitor(
     device_width : float
         Device width in microns (default: 1.0)
     ny_oxide : int
-        Mesh points in oxide layer (default: 10)
+        Mesh points in oxide layer (default: 100)
     ny_silicon : int
-        Mesh points in silicon (default: 20)
+        Mesh points in silicon (default: 200)
     nx : int
         Mesh points in x direction (default: 3)
     substrate_doping : float

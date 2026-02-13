@@ -58,7 +58,7 @@ class Log(PadreCommand):
         if self.ivfile:
             params["OUTF"] = self.ivfile
         if self.acfile:
-            params["ACF"] = self.acfile
+            params["ACFILE"] = self.acfile
         if self.last:
             flags.append("LAST")
         if self.no_trap:
