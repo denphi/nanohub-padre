@@ -807,6 +807,10 @@ class Simulation:
         for doping in self._dopings:
             lines.append(doping.to_padre())
 
+        # Contacts (before materials — Rappture ordering)
+        for contact in self._contacts:
+            lines.append(contact.to_padre())
+
         # Alloys (before materials)
         for alloy in self._alloys:
             lines.append(alloy.to_padre())
@@ -818,10 +822,6 @@ class Simulation:
         # Interfaces
         for interface in self._interfaces:
             lines.append(interface.to_padre())
-
-        # Contacts
-        for contact in self._contacts:
-            lines.append(contact.to_padre())
 
         # Models
         if self._models:

@@ -238,13 +238,13 @@ def create_mos_capacitor(
         near_end = oxide_thickness + near_interface_width
 
         sim.mesh = Mesh(nx=nx, ny=total_ny)
-        sim.mesh.add_y_mesh(1, 0, ratio=1)
+        sim.mesh.add_y_mesh(1, 0)
         sim.mesh.add_y_mesh(ny_mid_oxide, oxide_thickness / 2, ratio=1)
         sim.mesh.add_y_mesh(ny_oxide, oxide_thickness, ratio=0.8)
         sim.mesh.add_y_mesh(ny_oxide + ny_near, near_end, ratio=1)
         sim.mesh.add_y_mesh(total_ny, total_thickness, ratio=1.05)
 
-    sim.mesh.add_x_mesh(1, 0, ratio=1)
+    sim.mesh.add_x_mesh(1, 0.001)
     sim.mesh.add_x_mesh(nx, device_width, ratio=1)
 
     # Regions

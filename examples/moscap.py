@@ -19,12 +19,12 @@ def create_moscap_simulation():
 
     # Mesh Specification
     sim.mesh = Mesh(nx=3, ny=41)
-    sim.mesh.add_y_mesh(1, 0, ratio=1)
+    sim.mesh.add_y_mesh(1, 0)
     sim.mesh.add_y_mesh(10, 0.002, ratio=0.8)
     sim.mesh.add_y_mesh(21, 0.032, ratio=1.25)
     sim.mesh.add_y_mesh(31, 0.062, ratio=0.8)
     sim.mesh.add_y_mesh(41, 0.064, ratio=1.25)
-    sim.mesh.add_x_mesh(1, 0, ratio=1)
+    sim.mesh.add_x_mesh(1, 0.001)
     sim.mesh.add_x_mesh(3, 1, ratio=1)
 
     # Regions specification
