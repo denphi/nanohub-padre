@@ -21,12 +21,14 @@ def create_pn_diode(
     length: float = 1.0,
     width: float = 1.0,
     junction_position: float = 0.5,
+    intrinsic_width: float = 0.0,
     # Mesh parameters
     nx: int = 200,
     ny: int = 3,
     # Doping parameters
     p_doping: float = 1e17,
     n_doping: float = 1e17,
+    intrinsic_doping: float = 1.5e10,
     # Physical models
     temperature: float = 300,
     srh: bool = True,
@@ -64,7 +66,11 @@ def create_pn_diode(
     width : float
         Device width in microns (default: 1.0)
     junction_position : float
-        Position of the PN junction as fraction of length (default: 0.5)
+        Position of the P-I (or P-N) junction as fraction of length (default: 0.5)
+    intrinsic_width : float
+        Width of the intrinsic (lightly-doped) region in microns (default: 0.0).
+        When 0, structure is a standard PN diode.  When > 0, an intrinsic
+        region is inserted between P and N, forming a PIN diode.
     nx : int
         Number of mesh points in x direction (default: 200)
     ny : int
@@ -73,6 +79,9 @@ def create_pn_diode(
         P-type doping concentration in cm^-3 (default: 1e17)
     n_doping : float
         N-type doping concentration in cm^-3 (default: 1e17)
+    intrinsic_doping : float
+        Intrinsic region doping concentration in cm^-3 (default: 1.5e10).
+        Only used when intrinsic_width > 0.
     temperature : float
         Simulation temperature in Kelvin (default: 300)
     srh : bool
@@ -123,12 +132,20 @@ def create_pn_diode(
 
     Example
     -------
-    >>> # Basic diode - no solve commands, add your own
+    >>> # Basic PN diode - no solve commands, add your own
     >>> sim = create_pn_diode(length=2.0, p_doping=1e16, n_doping=1e18)
     >>> sim.add_solve(Solve(initial=True))
     >>> print(sim.generate_deck())
     >>>
-    >>> # Complete simulation with sweeps and logging
+    >>> # PIN diode with 0.2 um intrinsic region
+    >>> sim = create_pn_diode(
+    ...     length=1.0, junction_position=0.3, intrinsic_width=0.4,
+    ...     p_doping=1e17, n_doping=1e17,
+    ...     log_iv=True, forward_sweep=(0.0, 1.0, 0.05)
+    ... )
+    >>> result = sim.run()
+    >>>
+    >>> # Complete PN simulation with sweeps and logging
     >>> sim = create_pn_diode(
     ...     log_iv=True,
     ...     log_bands_eq=True,
@@ -139,11 +156,13 @@ def create_pn_diode(
     >>> result = sim.run()
     >>> sim.plot_band_diagram()  # Plots all logged band diagrams
     """
-    sim = Simulation(title=title or "PN Junction Diode")
+    is_pin = intrinsic_width > 0.0
+    sim = Simulation(title=title or ("PIN Diode" if is_pin else "PN Junction Diode"))
     sim._device_type = "pn_diode"
     sim._device_kwargs = dict(
         length=length, width=width, junction_position=junction_position,
-        nx=nx, ny=ny, p_doping=p_doping, n_doping=n_doping,
+        intrinsic_width=intrinsic_width, nx=nx, ny=ny,
+        p_doping=p_doping, n_doping=n_doping, intrinsic_doping=intrinsic_doping,
         temperature=temperature, srh=srh, conmob=conmob, fldmob=fldmob,
         impact=impact, taun0=taun0, taup0=taup0, title=title,
         postscript=postscript, log_iv=log_iv, iv_file=iv_file,
@@ -156,20 +175,43 @@ def create_pn_diode(
     if postscript:
         sim.options = Options(postscript=True)
 
-    # Mesh with refinement near junction
-    sim.mesh = Mesh(nx=nx, ny=ny, width=width, outfile="mesh")
-    junction_x = junction_position * length
-    mid_point = nx // 2
+    # Compute junction boundaries
+    junction_x = junction_position * length           # P-I (or P-N) boundary
+    intrinsic_end = junction_x + intrinsic_width      # I-N boundary (== junction_x when PN)
 
-    sim.mesh.add_x_mesh(1, 0, ratio=1)
-    sim.mesh.add_x_mesh(mid_point, junction_x, ratio=0.8)
-    sim.mesh.add_x_mesh(nx, length, ratio=1.05)
+    # Mesh with refinement near junction(s)
+    sim.mesh = Mesh(nx=nx, ny=ny, width=width, outfile="mesh")
+
+    if is_pin:
+        # Place roughly equal mesh density in each region; refine at both junctions
+        nx_p = max(2, int(nx * junction_x / length))
+        nx_i = max(2, int(nx * intrinsic_width / length))
+        nx_n = nx - nx_p - nx_i
+        nx_pi = nx_p                        # index of P-I interface
+        nx_in = nx_p + nx_i                 # index of I-N interface
+
+        sim.mesh.add_x_mesh(1, 0, ratio=1)
+        sim.mesh.add_x_mesh(nx_pi, junction_x, ratio=0.8)
+        sim.mesh.add_x_mesh(nx_in, intrinsic_end, ratio=1.05)
+        sim.mesh.add_x_mesh(nx, length, ratio=1.05)
+    else:
+        mid_point = nx // 2
+        sim.mesh.add_x_mesh(1, 0, ratio=1)
+        sim.mesh.add_x_mesh(mid_point, junction_x, ratio=0.8)
+        sim.mesh.add_x_mesh(nx, length, ratio=1.05)
+
     sim.mesh.add_y_mesh(1, 0, ratio=1)
     sim.mesh.add_y_mesh(ny, width, ratio=1)
 
-    # Silicon regions (split at junction for clarity)
-    sim.add_region(Region(1, ix_low=1, ix_high=mid_point, iy_low=1, iy_high=ny, silicon=True))
-    sim.add_region(Region(1, ix_low=mid_point, ix_high=nx, iy_low=1, iy_high=ny, silicon=True))
+    # Silicon regions
+    if is_pin:
+        sim.add_region(Region(1, ix_low=1, ix_high=nx_pi, iy_low=1, iy_high=ny, silicon=True))
+        sim.add_region(Region(1, ix_low=nx_pi, ix_high=nx_in, iy_low=1, iy_high=ny, silicon=True))
+        sim.add_region(Region(1, ix_low=nx_in, ix_high=nx, iy_low=1, iy_high=ny, silicon=True))
+    else:
+        mid_point = nx // 2
+        sim.add_region(Region(1, ix_low=1, ix_high=mid_point, iy_low=1, iy_high=ny, silicon=True))
+        sim.add_region(Region(1, ix_low=mid_point, ix_high=nx, iy_low=1, iy_high=ny, silicon=True))
 
     # Electrodes at device ends
     sim.add_electrode(Electrode(1, ix_low=1, ix_high=1, iy_low=1, iy_high=ny))
@@ -178,8 +220,12 @@ def create_pn_diode(
     # Doping
     sim.add_doping(Doping(region=1, p_type=True, concentration=p_doping,
                           x_left=0, x_right=junction_x, y_top=0, y_bottom=width, uniform=True))
+    if is_pin:
+        sim.add_doping(Doping(region=1, n_type=True, concentration=intrinsic_doping,
+                              x_left=junction_x, x_right=intrinsic_end,
+                              y_top=0, y_bottom=width, uniform=True))
     sim.add_doping(Doping(region=1, n_type=True, concentration=n_doping,
-                          x_left=junction_x, x_right=length, y_top=0, y_bottom=width, uniform=True))
+                          x_left=intrinsic_end, x_right=length, y_top=0, y_bottom=width, uniform=True))
 
     # Contacts - ohmic contacts for all electrodes
     sim.add_contact(Contact(all_contacts=True, neutral=True))
