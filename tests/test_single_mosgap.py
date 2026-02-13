@@ -25,8 +25,8 @@ class TestSingleMOSGap(unittest.TestCase):
 
     def test_two_regions(self):
         """Test oxide-silicon structure."""
-        self.assertIn("region ins num=1", self.deck)
-        self.assertIn("region semi num=2", self.deck)
+        self.assertIn("name=sio2 ins", self.deck)
+        self.assertIn("name=silicon semi", self.deck)
 
     def test_electrodes(self):
         """Test electrode definitions."""

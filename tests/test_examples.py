@@ -136,8 +136,8 @@ class TestMOSCAP(unittest.TestCase):
 
     def test_regions(self):
         """Test region definitions for oxide-silicon-oxide structure."""
-        self.assertIn("region ins", self.deck)
-        self.assertIn("region semi", self.deck)
+        self.assertIn("name=sio2 ins", self.deck)
+        self.assertIn("name=silicon semi", self.deck)
         self.assertIn("name=sio2", self.deck)
         self.assertIn("name=silicon", self.deck)
 
@@ -206,10 +206,10 @@ class TestMESFET(unittest.TestCase):
 
     def test_regions(self):
         """Test region definitions."""
-        self.assertIn("region silicon num=1", self.deck)
-        self.assertIn("region silicon num=2", self.deck)
-        self.assertIn("region silicon num=3", self.deck)
-        self.assertIn("region silicon num=4", self.deck)
+        self.assertIn("num=1 ix.l=1 ix.h=61 iy.l=1 iy.h=20 silicon", self.deck)
+        self.assertIn("num=2 ix.l=1 ix.h=11 iy.l=20 iy.h=51 silicon", self.deck)
+        self.assertIn("num=3 ix.l=11 ix.h=51 iy.l=20 iy.h=51 silicon", self.deck)
+        self.assertIn("num=4 ix.l=51 ix.h=61 iy.l=20 iy.h=51 silicon", self.deck)
 
     def test_electrodes(self):
         """Test electrode definitions (source, drain, gate)."""
@@ -271,8 +271,8 @@ class TestSingleMOSGap(unittest.TestCase):
 
     def test_two_regions(self):
         """Test oxide-silicon structure."""
-        self.assertIn("region ins num=1", self.deck)
-        self.assertIn("region semi num=2", self.deck)
+        self.assertIn("name=sio2 ins", self.deck)
+        self.assertIn("name=silicon semi", self.deck)
 
     def test_electrodes(self):
         """Test electrode definitions."""

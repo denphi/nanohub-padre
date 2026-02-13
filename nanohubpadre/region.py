@@ -135,12 +135,6 @@ class Region(PadreCommand):
         if self.material:
             params["NAME"] = self.material
 
-        # Type flags
-        if self.semiconductor:
-            flags.append("SEMI")
-        if self.insulator:
-            flags.append("INS")
-
         # Position - coordinates
         if self.x_min is not None:
             params["X.MIN"] = self.x_min
@@ -155,7 +149,15 @@ class Region(PadreCommand):
         if self.z_max is not None:
             params["Z.MAX"] = self.z_max
 
-        # Legacy material flags
+        # Special
+        if self.newnum is not None:
+            params["NEW"] = self.newnum
+
+        # Type flags and legacy material flags come AFTER name= (Rappture convention)
+        if self.semiconductor:
+            flags.append("SEMI")
+        if self.insulator:
+            flags.append("INS")
         if self.silicon:
             flags.append("SILICON")
         if self.gaas:
@@ -169,11 +171,11 @@ class Region(PadreCommand):
         if self.sapphire:
             flags.append("SAPPHIRE")
 
-        # Special
-        if self.newnum is not None:
-            params["NEW"] = self.newnum
-
-        return self._build_command(params, flags)
+        cmd = self._build_command(params, [])
+        if flags:
+            suffix = " ".join(f.lower() for f in flags)
+            cmd = cmd + " " + suffix
+        return cmd
 
     @classmethod
     def silicon(cls, number: int, **kwargs) -> "Region":

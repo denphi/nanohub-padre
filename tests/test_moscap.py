@@ -31,8 +31,8 @@ class TestMOSCAP(unittest.TestCase):
 
     def test_regions(self):
         """Test region definitions for oxide-silicon-oxide structure."""
-        self.assertIn("region ins", self.deck)
-        self.assertIn("region semi", self.deck)
+        self.assertIn("name=sio2 ins", self.deck)
+        self.assertIn("name=silicon semi", self.deck)
         self.assertIn("name=sio2", self.deck)
         self.assertIn("name=silicon", self.deck)
 
