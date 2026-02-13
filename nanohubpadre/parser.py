@@ -1279,7 +1279,11 @@ class ACFileParser:
         
         # Fix scientific notation format (e.g., 1.23-04 -> 1.23E-04)
         content = re.sub(r'([0-9])([-+][0-9])', r'\g<1>E\g<2>', content)
-        
+
+        # Some PADRE versions embed the first Q record mid-line after garbage bytes.
+        # Ensure every Q record starts on its own line.
+        content = re.sub(r'(?<!\n)(Q\s+\d)', r'\n\1', content)
+
         lines = [l.rstrip() for l in content.split('\n')]
         if not lines:
             return ACData()
