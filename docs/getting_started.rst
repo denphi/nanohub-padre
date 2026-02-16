@@ -130,22 +130,59 @@ Let's create a simple 1D PN diode:
 Running the Simulation
 ----------------------
 
-After generating the input deck, you can run PADRE:
-
-.. code-block:: bash
-
-   padre < pn_diode.inp > pn_diode.out
-
-Or use the built-in run method:
+Use ``sim.run()`` to execute PADRE directly from Python. Always raise on failure
+so errors surface as exceptions rather than silent output:
 
 .. code-block:: python
 
-   result = sim.run(padre_executable="padre")
-   print(result.stdout)
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+After a successful run, all outputs are automatically parsed and accessible:
+
+.. code-block:: python
+
+   # Plot I-V characteristic (current_electrode defaults to 1)
+   sim.plot_iv(title="PN Diode Forward I-V", log_scale=True)
+
+   # Plot band diagram
+   sim.plot_band_diagram(title="PN Diode Band Diagram")
+
+   # Access raw data
+   iv = sim.outputs.get_iv_data()
+   vg, i = iv.get_iv_data(electrode=2)
+
+Using Factory Functions (Recommended)
+--------------------------------------
+
+For most devices, the factory functions handle all setup automatically:
+
+.. code-block:: python
+
+   from nanohubpadre import create_mos_capacitor
+
+   sim = create_mos_capacitor(
+       oxide_thickness=0.005,
+       substrate_doping=1e17,
+       substrate_type="p",
+       gate_type="n_poly",
+       log_cv=True,
+       log_bands_eq=True,
+       vg_sweep=(-2.0, 2.0, 0.05),
+   )
+
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim.plot_band_diagram(suffix="eq")
+   sim.plot_cv()
 
 Next Steps
 ----------
 
 * Explore the :doc:`user_guide` for detailed information on each component
+* See the :doc:`devices` page for all factory functions and their parameters
 * Check out the :doc:`examples` for complete simulation setups
 * Refer to the :doc:`api` for full API documentation

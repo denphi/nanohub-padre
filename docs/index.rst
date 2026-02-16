@@ -1,84 +1,114 @@
 .. nanohub-padre documentation master file
 
 Welcome to nanohub-padre's documentation!
-=========================================
+==========================================
 
-**nanohub-padre** is a Python library for creating and running PADRE semiconductor device simulations.
-It provides a Pythonic interface to generate PADRE input decks, making it easier to set up
-complex device simulations programmatically.
+**nanohub-padre** is a Python library for creating and running PADRE semiconductor
+device simulations on nanoHUB or locally. It provides a Pythonic interface to
+generate PADRE input decks and visualize simulation results — no manual file
+parsing required.
 
-PADRE (Physics-based Accurate Device Resolution and Evaluation) is a 2D/3D device simulator
-that solves the drift-diffusion equations for semiconductor devices.
+PADRE (Physics-based Accurate Device Resolution and Evaluation) is a 2D device
+simulator that solves the drift-diffusion equations for semiconductor devices.
 
 Features
 --------
 
-* **Pythonic Interface**: Define meshes, regions, doping profiles, and solver settings using Python objects
-* **Device Factory Functions**: Pre-built functions to create common devices (PN diode, MOSFET, BJT, solar cell, etc.)
-* **Complete PADRE Support**: Covers mesh generation, material properties, physical models, and solve commands
-* **Validation**: Built-in parameter validation and helpful error messages
-* **Examples**: Ready-to-run examples for common device structures
+* **One-line device creation** — factory functions for PN diode, MOS capacitor,
+  MOSFET, MESFET, BJT, Schottky diode, and solar cell
+* **Built-in visualization** — ``plot_band_diagram()``, ``plot_iv()``,
+  ``plot_cv()``, ``plot_electrostatics()``, ``plot_carriers()``,
+  ``plot_transfer()``, ``plot_output()``, ``plot_gummel()``, ``plot_contour()``
+* **Automatic output management** — outputs are registered and parsed
+  automatically after ``sim.run()``; no manual file handling
+* **Rappture-compatible decks** — generated input decks match the nanoHUB
+  Rappture tool reference decks (keyword order, interface cards, permi=, etc.)
+* **Jupyter notebooks** — six ready-to-run example notebooks covering all
+  major device types
 
 Quick Start
 -----------
 
-**Using Device Factory Functions (Recommended)**
+**MOS Capacitor C-V Analysis**
 
 .. code-block:: python
 
-   from nanohubpadre import create_mosfet, Solve, Log
+   from nanohubpadre import create_mos_capacitor
 
-   # Create an NMOS transistor with one line
-   sim = create_mosfet(
-       channel_length=0.05,
-       device_type="nmos",
-       temperature=300
+   sim = create_mos_capacitor(
+       oxide_thickness=0.005,       # 5 nm SiO2
+       silicon_thickness=0.05,
+       substrate_doping=1e17,
+       substrate_type="p",
+       gate_type="n_poly",
+       log_cv=True,
+       log_bands_eq=True,
+       vg_sweep=(-2.0, 2.0, 0.05),
+       ac_frequency=1e6,
    )
 
-   # Add solve commands
-   sim.add_solve(Solve(initial=True))
-   sim.add_log(Log(ivfile="idvg"))
-   sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
 
-   # Generate the input deck
-   print(sim.generate_deck())
+   sim.plot_band_diagram(suffix="eq", title="Band Diagram at Equilibrium")
+   sim.plot_cv(title="MOS Capacitor C-V")
+
+**MOSFET Transfer Characteristic**
+
+.. code-block:: python
+
+   from nanohubpadre import create_mosfet
+
+   sim = create_mosfet(channel_length=0.025, device_type="nmos")
+
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim.plot_transfer(gate_electrode=3, drain_electrode=2)
 
 **Building from Scratch**
 
 .. code-block:: python
 
-   from nanohubpadre import Simulation, Mesh, Region, Electrode, Doping, Models, System, Solve
+   from nanohubpadre import (
+       Simulation, Mesh, Region, Electrode, Doping,
+       Contact, Material, Interface, Models, System, Solve, Log
+   )
 
-   # Create a simple PN diode simulation
-   sim = Simulation(title="Simple PN Diode")
+   sim = Simulation(title="PN Diode")
 
-   # Define mesh
    sim.mesh = Mesh(nx=100, ny=3)
-   sim.mesh.add_x_mesh(1, 0)
+   sim.mesh.add_x_mesh(1, 0.0)
+   sim.mesh.add_x_mesh(50, 0.5, ratio=0.8)
    sim.mesh.add_x_mesh(100, 1.0)
-   sim.mesh.add_y_mesh(1, 0)
-   sim.mesh.add_y_mesh(3, 1)
+   sim.mesh.add_y_mesh(1, 0.0)
+   sim.mesh.add_y_mesh(3, 1.0)
 
-   # Define silicon region
-   sim.add_region(Region(1, ix_low=1, ix_high=100, iy_low=1, iy_high=3, silicon=True))
-
-   # Define electrodes
-   sim.add_electrode(Electrode(1, ix_low=1, ix_high=1, iy_low=1, iy_high=3))
+   sim.add_region(Region(1, ix_low=1, ix_high=100, iy_low=1, iy_high=3,
+                         material="silicon", semiconductor=True))
+   sim.add_electrode(Electrode(1, ix_low=1,   ix_high=1,   iy_low=1, iy_high=3))
    sim.add_electrode(Electrode(2, ix_low=100, ix_high=100, iy_low=1, iy_high=3))
 
-   # Define doping
    sim.add_doping(Doping(p_type=True, concentration=1e17, uniform=True, x_right=0.5))
    sim.add_doping(Doping(n_type=True, concentration=1e17, uniform=True, x_left=0.5))
 
-   # Configure models
-   sim.models = Models(temperature=300, srh=True, conmob=True, fldmob=True)
+   sim.add_contact(Contact(all_contacts=True, neutral=True))
+   sim.add_material(Material(name="silicon", taun0=1e-6, taup0=1e-6))
+   sim.models = Models(temperature=300, srh=True, conmob=True, fldmob=True,
+                       print_models=True)
    sim.system = System(electrons=True, holes=True, newton=True)
 
-   # Add solve commands
    sim.add_solve(Solve(initial=True))
+   sim.add_log(Log(ivfile="iv"))
+   sim.add_solve(Solve(project=True, v1=0.0, vstep=0.05, nsteps=20, electrode=1))
 
-   # Generate and print the input deck
-   print(sim.generate_deck())
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim.plot_iv(title="PN Diode Forward I-V")
 
 Installation
 ------------
@@ -87,7 +117,7 @@ Installation
 
    pip install nanohub-padre
 
-Or install from source:
+Or from source:
 
 .. code-block:: bash
 

@@ -1,43 +1,47 @@
 Device Factory Functions
 ========================
 
-nanohub-padre provides convenient factory functions for creating common semiconductor devices.
-These functions simplify the process of setting up device structures by providing
-sensible defaults while allowing full customization.
+nanohub-padre provides factory functions for creating common semiconductor devices.
+Each function returns a fully configured ``Simulation`` object that can be run
+immediately or customized further.
+
+All devices support direct ``sim.run()`` execution and built-in visualization
+methods (``plot_band_diagram()``, ``plot_iv()``, ``plot_cv()``, etc.).
 
 Overview
 --------
 
-The ``nanohubpadre.devices`` module contains factory functions for:
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
 
-* **PN Diode** - Basic PN junction diode
-* **MOS Capacitor** - Metal-oxide-semiconductor capacitor for C-V analysis
-* **MOSFET** - NMOS and PMOS transistors
-* **MESFET** - Metal-semiconductor FET with Schottky gate
-* **BJT** - NPN and PNP bipolar junction transistors
-* **Schottky Diode** - Metal-semiconductor junction diode
-* **Solar Cell** - PN junction photovoltaic device
+   * - Function
+     - Device
+   * - ``create_pn_diode``
+     - PN junction diode
+   * - ``create_mos_capacitor``
+     - MOS capacitor with C-V analysis (single- or double-gate)
+   * - ``create_mosfet``
+     - NMOS / PMOS transistor
+   * - ``create_mesfet``
+     - Metal-semiconductor FET (Schottky gate)
+   * - ``create_bjt``
+     - NPN / PNP bipolar junction transistor
+   * - ``create_schottky_diode``
+     - Schottky (metal-semiconductor) diode
+   * - ``create_solar_cell``
+     - PN junction solar cell
 
-All factory functions return a ``Simulation`` object that can be further customized
-before generating the input deck.
+Error Handling
+--------------
 
-Quick Example
--------------
+Always raise on simulation failure — do not silently ignore a non-zero return code:
 
 .. code-block:: python
 
-   from nanohubpadre import create_mosfet, Solve, Log
-
-   # Create an NMOS transistor with one line
-   sim = create_mosfet(channel_length=0.05, device_type="nmos")
-
-   # Add solve commands
-   sim.add_solve(Solve(initial=True))
-   sim.add_log(Log(ivfile="idvg"))
-   sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
-
-   # Generate the input deck
-   print(sim.generate_deck())
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
 
 PN Diode
 --------
@@ -48,45 +52,96 @@ PN Diode
 
 .. code-block:: python
 
-   from nanohubpadre import create_pn_diode, Solve, Log
+   from nanohubpadre import create_pn_diode
 
    sim = create_pn_diode(
-       length=1.0,
-       junction_position=0.5,
+       length=2.0,
        p_doping=1e17,
        n_doping=1e17,
-       temperature=300
+       temperature=300,
+       log_iv=True,
+       forward_sweep=(0.0, 1.0, 0.05),
    )
 
-   sim.add_solve(Solve(initial=True))
-   sim.add_log(Log(ivfile="iv"))
-   sim.add_solve(Solve(project=True, vstep=0.05, nsteps=20, electrode=1))
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim.plot_iv(title="PN Diode Forward I-V")
+   sim.plot_band_diagram(title="PN Diode Band Diagram")
 
 MOS Capacitor
 -------------
 
 .. autofunction:: nanohubpadre.devices.mos_capacitor.create_mos_capacitor
 
-**Example:**
+The ``create_mos_capacitor`` function supports:
+
+* **Single-gate** (default, ``gate_config="single"``) and **double-gate** (``gate_config="double"``) configurations
+* Built-in HF and LF C-V sweeps (``log_cv=True``, ``log_cv_lf=True``, ``vg_sweep=(v_start, v_end, v_step)``)
+* Equilibrium and bias band diagram logging (``log_bands_eq=True``, ``log_bands_bias=True``)
+* Equilibrium carrier, potential, and E-field profiles (``log_profiles_eq=True``)
+
+**Single-gate example (Rappture defaults):**
 
 .. code-block:: python
 
-   from nanohubpadre import create_mos_capacitor, Solve, Log
+   from nanohubpadre import create_mos_capacitor
 
    sim = create_mos_capacitor(
-       oxide_thickness=0.002,      # 2nm oxide
-       silicon_thickness=0.03,
-       substrate_doping=1e18,
+       oxide_thickness=0.1,        # 100 nm
+       silicon_thickness=5.0,
+       substrate_doping=1e15,
        substrate_type="p",
-       gate_type="n_poly"
+       gate_type="n_poly",
+       oxide_permittivity=3.9,
+       taun0=1e-9,
+       taup0=1e-9,
+       temperature=300,
+       log_cv=True,
+       cv_file="cv_hf",
+       ac_frequency=1e6,
+       log_cv_lf=True,
+       cv_lf_file="cv_lf",
+       log_bands_eq=True,
+       log_qf_eq=True,
+       log_profiles_eq=True,
+       vg_sweep=(-3.0, 5.0, 0.08),
    )
 
-   sim.add_solve(Solve(initial=True))
-   sim.add_log(Log(acfile="cv"))
-   sim.add_solve(Solve(
-       v1=-2.0, vstep=0.2, nsteps=20, electrode=1,
-       ac_analysis=True, frequency=1e6
-   ))
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim.plot_band_diagram(suffix="eq", title="Band Diagram at Equilibrium")
+   sim.plot_carriers(suffix="eq", log_scale=True)
+   sim.plot_electrostatics(suffix="eq")
+   sim.plot_cv(title="C-V Characteristics (HF + LF)")
+
+**Double-gate example:**
+
+.. code-block:: python
+
+   sim_dg = create_mos_capacitor(
+       oxide_thickness=0.005,
+       silicon_thickness=0.02,
+       substrate_doping=1e17,
+       substrate_type="p",
+       gate_type="n_poly",
+       gate_config="double",
+       back_oxide_thickness=0.005,
+       back_gate_type="n_poly",
+       log_cv=True,
+       log_bands_eq=True,
+       vg_sweep=(-2.0, 2.0, 0.1),
+   )
+
+   result = sim_dg.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim_dg.plot_band_diagram(title="Double-Gate MOS Cap — Equilibrium")
+   sim_dg.plot_cv(title="Double-Gate C-V")
 
 MOSFET
 ------
@@ -97,29 +152,21 @@ MOSFET
 
 .. code-block:: python
 
-   from nanohubpadre import create_mosfet, Solve, Log, Load
+   from nanohubpadre import create_mosfet
 
-   # Create NMOS transistor
    sim = create_mosfet(
        channel_length=0.025,
-       source_drain_doping=1e20,
-       channel_doping=1e19,
-       device_type="nmos"
+       device_type="nmos",
+       temperature=300,
    )
 
-   # Equilibrium
-   sim.add_solve(Solve(initial=True, outfile="init"))
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
 
-   # Transfer characteristic
-   sim.add_solve(Solve(v2=0.05))
-   sim.add_log(Log(ivfile="idvg"))
-   sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
-
-   # Output characteristic
-   sim.add_load(Load(infile="init"))
-   sim.add_solve(Solve(v3=1.0))
-   sim.add_log(Log(ivfile="idvd"))
-   sim.add_solve(Solve(v2=0, vstep=0.1, nsteps=20, electrode=2))
+   sim.plot_transfer(gate_electrode=3, drain_electrode=2,
+                     title="NMOS Transfer Characteristic")
+   sim.plot_output(drain_electrode=2, title="NMOS Output Characteristic")
 
 MESFET
 ------
@@ -130,20 +177,23 @@ MESFET
 
 .. code-block:: python
 
-   from nanohubpadre import create_mesfet, Solve, Log
+   from nanohubpadre import create_mesfet
 
    sim = create_mesfet(
        channel_length=0.2,
        gate_length=0.2,
        channel_doping=1e17,
        gate_workfunction=4.87,
-       device_type="n"
+       device_type="n",
    )
 
-   sim.add_solve(Solve(initial=True))
-   sim.add_solve(Solve(v3=0, vstep=-0.1, nsteps=5, electrode=3))
-   sim.add_log(Log(ivfile="idvd"))
-   sim.add_solve(Solve(v2=0, vstep=0.1, nsteps=20, electrode=2))
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim.plot_transfer(gate_electrode=3, drain_electrode=2)
+   sim.plot_output(drain_electrode=2)
+   sim.plot_band_diagram()
 
 Bipolar Junction Transistor (BJT)
 ---------------------------------
@@ -154,7 +204,7 @@ Bipolar Junction Transistor (BJT)
 
 .. code-block:: python
 
-   from nanohubpadre import create_bjt, Solve, Log
+   from nanohubpadre import create_bjt
 
    sim = create_bjt(
        emitter_width=1.0,
@@ -163,13 +213,15 @@ Bipolar Junction Transistor (BJT)
        emitter_doping=1e20,
        base_doping=1e17,
        collector_doping=1e16,
-       device_type="npn"
+       device_type="npn",
    )
 
-   sim.add_solve(Solve(initial=True))
-   sim.add_solve(Solve(v2=0.7))  # Forward bias base
-   sim.add_log(Log(ivfile="ic_vce"))
-   sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=30, electrode=3))
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim.plot_band_diagram(title="NPN BJT Band Diagram")
+   sim.plot_gummel(base_electrode=2, collector_electrode=3)
 
 Schottky Diode
 --------------
@@ -180,30 +232,38 @@ Schottky Diode
 
 .. code-block:: python
 
-   from nanohubpadre import create_schottky_diode, Solve, Log
+   from nanohubpadre import create_schottky_diode
 
    sim = create_schottky_diode(
        length=2.0,
        doping=1e16,
        doping_type="n",
        workfunction=4.8,
-       barrier_lowering=True
    )
 
-   sim.add_solve(Solve(initial=True))
-   sim.add_log(Log(ivfile="iv"))
-   sim.add_solve(Solve(project=True, vstep=0.05, nsteps=20, electrode=1))
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim.plot_iv(log_scale=True, title="Schottky Diode I-V")
+   sim.plot_band_diagram()
 
 Solar Cell
 ----------
 
 .. autofunction:: nanohubpadre.devices.solar_cell.create_solar_cell
 
+.. warning::
+
+   ``create_solar_cell()`` is experimental. PADRE cannot resolve solar-cell
+   dark currents (I₀ ~ 10⁻²⁰ A) with the default cross-section. Band diagrams
+   and carrier profiles are still valid.
+
 **Example:**
 
 .. code-block:: python
 
-   from nanohubpadre import create_solar_cell, Solve, Log
+   from nanohubpadre import create_solar_cell
 
    sim = create_solar_cell(
        emitter_depth=0.5,
@@ -211,65 +271,35 @@ Solar Cell
        emitter_doping=1e19,
        base_doping=1e16,
        device_type="n_on_p",
-       front_surface_velocity=1e4,
-       back_surface_velocity=1e7
    )
 
-   sim.add_solve(Solve(initial=True))
-   sim.add_log(Log(ivfile="iv_dark"))
-   sim.add_solve(Solve(v1=0, vstep=0.05, nsteps=15, electrode=1))
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
 
-Aliases
--------
-
-For convenience, shorter aliases are available for all factory functions:
-
-.. code-block:: python
-
-   from nanohubpadre import (
-       pn_diode,        # alias for create_pn_diode
-       mos_capacitor,   # alias for create_mos_capacitor
-       mosfet,          # alias for create_mosfet
-       mesfet,          # alias for create_mesfet
-       bjt,             # alias for create_bjt
-       schottky_diode,  # alias for create_schottky_diode
-       solar_cell       # alias for create_solar_cell
-   )
-
-   # These are equivalent:
-   sim1 = create_mosfet(device_type="nmos")
-   sim2 = mosfet(device_type="nmos")
+   sim.plot_band_diagram()
+   sim.plot_carriers(log_scale=True)
 
 Customizing Generated Devices
------------------------------
+------------------------------
 
-The returned ``Simulation`` object can be further customized:
+The returned ``Simulation`` object can be further customized before running:
 
 .. code-block:: python
 
    from nanohubpadre import create_pn_diode, Material, Models
 
-   # Create base device
    sim = create_pn_diode()
 
-   # Add custom material properties
-   sim.add_material(Material(
-       name="silicon",
-       taun0=1e-7,
-       taup0=1e-7
-   ))
+   # Override material properties
+   sim.add_material(Material(name="silicon", taun0=1e-7, taup0=1e-7))
 
-   # Override models
-   sim.models = Models(
-       temperature=350,
-       srh=True,
-       auger=True,
-       bgn=True,
-       conmob=True,
-       fldmob=True
-   )
+   # Override physical models
+   sim.models = Models(temperature=350, srh=True, auger=True,
+                       conmob=True, fldmob=True, print_models=True)
 
-   # Add additional regions, electrodes, etc.
-   # ...
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
 
-   print(sim.generate_deck())
+   sim.plot_band_diagram()

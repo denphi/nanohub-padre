@@ -1,242 +1,210 @@
 Examples
 ========
 
-This section contains complete example simulations for common semiconductor devices.
+All examples are available as Jupyter notebooks in ``examples/notebooks/``.
+Each notebook can be run on nanoHUB or locally with PADRE installed.
+
+Jupyter Notebooks
+-----------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 30 60
+
+   * - #
+     - Notebook
+     - Description
+   * - 00
+     - ``00_Introduction.ipynb``
+     - Overview and setup
+   * - 01
+     - ``01_Library_Overview.ipynb``
+     - Component-by-component tour of the API
+   * - 02
+     - ``02_PN_Diode.ipynb``
+     - I-V characteristics, band diagrams, ideality factor
+   * - 03
+     - ``03_Schottky_Diode.ipynb``
+     - Schottky barrier, forward/reverse I-V, workfunction effects
+   * - 04
+     - ``04_MOSFET.ipynb``
+     - Transfer and output characteristics, threshold voltage
+   * - 05
+     - ``05_BJT.ipynb``
+     - Gummel plot, β extraction, common-emitter output curves
+   * - 06
+     - ``06_MOS_Capacitor.ipynb``
+     - C-V analysis, band bending, single- and double-gate configurations
+   * - 07
+     - ``07_MESFET.ipynb``
+     - Output and transfer characteristics, doping and workfunction effects
 
 Using Device Factory Functions
-------------------------------
+-------------------------------
 
-The easiest way to create device simulations is using the factory functions.
-See the :doc:`devices` documentation for details on all available factories.
+The simplest workflow uses factory functions that handle mesh, regions,
+doping, contacts, materials, and solve commands automatically:
 
 .. code-block:: python
 
-   from nanohubpadre import create_pn_diode, create_mosfet, create_bjt, Solve, Log
+   from nanohubpadre import create_mos_capacitor
 
-   # Create devices with one line each
-   diode = create_pn_diode(p_doping=1e17, n_doping=1e17)
-   nmos = create_mosfet(channel_length=0.05, device_type="nmos")
-   npn = create_bjt(base_width=0.3, device_type="npn")
+   sim = create_mos_capacitor(
+       oxide_thickness=0.1,
+       silicon_thickness=5.0,
+       substrate_doping=1e15,
+       substrate_type="p",
+       gate_type="n_poly",
+       log_cv=True,
+       log_cv_lf=True,
+       log_bands_eq=True,
+       log_profiles_eq=True,
+       vg_sweep=(-3.0, 5.0, 0.08),
+   )
 
-   # Add solve commands and generate deck
-   diode.add_solve(Solve(initial=True))
-   print(diode.generate_deck())
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
 
-Device Factory Examples
-~~~~~~~~~~~~~~~~~~~~~~~
+   # All visualization through sim methods — no manual parsing
+   sim.plot_band_diagram(suffix="eq")
+   sim.plot_carriers(suffix="eq", log_scale=True)
+   sim.plot_electrostatics(suffix="eq")
+   sim.plot_cv()
 
-Complete examples using device factory functions are in ``examples/devices/``:
-
-* ``pn_diode_example.py`` - PN diode I-V characteristics
-* ``mos_capacitor_example.py`` - MOS capacitor C-V analysis
-* ``mosfet_example.py`` - NMOS transfer and output characteristics
-* ``mesfet_example.py`` - MESFET output characteristics
-* ``bjt_example.py`` - NPN common-emitter characteristics
-* ``schottky_diode_example.py`` - Schottky diode forward/reverse I-V
-* ``solar_cell_example.py`` - Solar cell dark I-V
-
-Run any example:
-
-.. code-block:: bash
-
-   cd padre
-   PYTHONPATH=. python3 examples/devices/mosfet_example.py > mosfet.inp
-   padre < mosfet.inp > mosfet.out
-
-Manual Device Construction Examples
+MOS Capacitor (Rappture Reference)
 -----------------------------------
 
-The examples below show how to build devices manually, giving you full control
-over the structure. These are useful when you need custom device geometries.
+The following reproduces the nanoHUB MOSCap Rappture tool defaults exactly.
+
+.. code-block:: python
+
+   from nanohubpadre import create_mos_capacitor
+
+   sim = create_mos_capacitor(
+       oxide_thickness=0.1,         # 100 nm (Rappture default)
+       ny_oxide=100,
+       silicon_thickness=5.0,
+       ny_silicon=200,
+       substrate_doping=1e15,       # Na = 1e15 /cm³
+       substrate_type="p",
+       gate_type="n_poly",          # n+ poly silicon gate
+       oxide_permittivity=3.9,
+       taun0=1e-9,                  # 1 ns carrier lifetimes
+       taup0=1e-9,
+       temperature=300,
+       log_cv=True,
+       cv_file="cv_hf",
+       ac_frequency=1e6,            # HF: 1 MHz
+       log_cv_lf=True,
+       cv_lf_file="cv_lf",
+       ac_frequency_lf=1.0,         # LF: 1 Hz
+       log_bands_eq=True,
+       log_qf_eq=True,
+       log_profiles_eq=True,
+       vg_sweep=(-3.0, 5.0, 0.08),  # -3V to +5V, 100 steps
+   )
+
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim.plot_band_diagram(suffix="eq", title="Band Diagram at Equilibrium (Vg=0)")
+   sim.plot_carriers(suffix="eq", log_scale=True)
+   sim.plot_electrostatics(suffix="eq")
+   sim.plot_cv(title="MOS Capacitor C-V (HF 1 MHz + LF 1 Hz)")
+
+Double-Gate MOS Capacitor
+--------------------------
+
+.. code-block:: python
+
+   from nanohubpadre import create_mos_capacitor
+
+   sim = create_mos_capacitor(
+       oxide_thickness=0.005,
+       silicon_thickness=0.02,
+       substrate_doping=1e17,
+       substrate_type="p",
+       gate_type="n_poly",
+       gate_config="double",
+       back_oxide_thickness=0.005,
+       back_gate_type="n_poly",
+       log_cv=True,
+       log_bands_eq=True,
+       vg_sweep=(-2.0, 2.0, 0.1),
+   )
+
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim.plot_band_diagram(title="Double-Gate — Equilibrium")
+   sim.plot_cv(title="Double-Gate C-V")
 
 PN Diode
 --------
 
-A simple PN junction diode for I-V characterization.
+.. code-block:: python
 
-.. literalinclude:: ../examples/pndiode.py
-   :language: python
-   :linenos:
-   :caption: examples/pndiode.py
+   from nanohubpadre import create_pn_diode
 
-The generated input deck:
+   sim = create_pn_diode(
+       length=2.0,
+       p_doping=1e17,
+       n_doping=1e17,
+       temperature=300,
+       log_iv=True,
+       forward_sweep=(0.0, 1.0, 0.05),
+       log_bands_eq=True,
+   )
 
-.. code-block:: text
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
 
-   TITLE  pn diode (setup)
-   options po
-   mesh rect nx=200 ny=3 width=1 outf=mesh
-   x.m n=1 l=0 r=1
-   x.m n=100 l=0.5 r=0.8
-   x.m n=200 l=1.0 r=1.05
-   y.m n=1 l=0 r=1
-   y.m n=3 l=1 r=1
-   region silicon num=1 ix.l=1 ix.h=100 iy.l=1 iy.h=3
-   region silicon num=1 ix.l=100 ix.h=200 iy.l=1 iy.h=3
-   elec num=1 ix.l=1 ix.h=1 iy.l=1 iy.h=3
-   elec num=2 ix.l=200 ix.h=200 iy.l=1 iy.h=3
-   ...
-   solve init
-   ...
-   solve proj vstep=0.03 nsteps=20 elect=1
-   end
-
-MOS Capacitor
--------------
-
-A MOS capacitor with oxide-silicon-oxide structure for C-V analysis.
-
-.. literalinclude:: ../examples/moscap.py
-   :language: python
-   :linenos:
-   :caption: examples/moscap.py
-
-Key features:
-
-* Three-region structure (oxide-silicon-oxide)
-* AC analysis for capacitance extraction
-* N+ polysilicon gate contacts
-* P-type substrate doping
+   sim.plot_iv(title="PN Diode I-V", log_scale=True)
+   sim.plot_band_diagram(title="PN Diode Band Diagram")
 
 MOSFET
 ------
 
-An NMOS transistor with source, drain, gate, and substrate contacts.
+.. code-block:: python
 
-.. literalinclude:: ../examples/mosfet_equivalent.py
+   from nanohubpadre import create_mosfet
+
+   sim = create_mosfet(channel_length=0.025, device_type="nmos")
+
+   result = sim.run()
+   if result.returncode != 0:
+       raise RuntimeError(f"Simulation failed:\n{result.stderr}")
+
+   sim.plot_transfer(gate_electrode=3, drain_electrode=2,
+                     title="NMOS Transfer Characteristic")
+
+Low-Level (Manual) Example
+---------------------------
+
+For full control over the device structure, build the simulation from scratch:
+
+.. literalinclude:: ../examples/moscap.py
    :language: python
    :linenos:
-   :caption: examples/mosfet_equivalent.py
-
-Key features:
-
-* Seven-region structure (substrate, source, drain, channel, gate oxide, fillers)
-* Four electrodes (source, drain, gate, substrate)
-* High source/drain doping (N+ 1e20)
-* P-type channel and substrate
-* Transfer characteristic (Id-Vg) and output characteristic (Id-Vd) sweeps
-* Save/load solution capability for multiple bias conditions
-
-MESFET
-------
-
-A Metal-Semiconductor FET with Schottky gate.
-
-.. literalinclude:: ../examples/mesfet.py
-   :language: python
-   :linenos:
-   :caption: examples/mesfet.py
-
-Key features:
-
-* Four silicon regions with different doping
-* Schottky gate contact with specified work function
-* Neutral ohmic contacts for source and drain
-* Single carrier (electron) simulation
-* Band-gap narrowing model
-
-Single MOS Gap
---------------
-
-A simple oxide-silicon structure for MOS physics study.
-
-.. literalinclude:: ../examples/single_mosgap.py
-   :language: python
-   :linenos:
-   :caption: examples/single_mosgap.py
-
-Key features:
-
-* Two-region structure (oxide on silicon)
-* Gate sweep with AC analysis
-* Comprehensive 1D plots of band structure, carriers, and fields
-* SRH recombination model
+   :caption: examples/moscap.py — Manual MOS capacitor
 
 Running the Examples
 --------------------
 
-To run any example:
+To run a Python example script:
 
 .. code-block:: bash
 
-   # Navigate to the padre directory
    cd padre
+   PYTHONPATH=. python3 examples/moscap.py
 
-   # Run the example and save the output deck
-   PYTHONPATH=. python3 examples/pndiode.py > pndiode.inp
+To run a notebook on nanoHUB, upload it and select the PADRE kernel.
+To run locally, ensure PADRE is in your ``PATH`` and start Jupyter:
 
-   # Run PADRE (if installed)
-   padre < pndiode.inp > pndiode.out
+.. code-block:: bash
 
-Or run interactively:
-
-.. code-block:: python
-
-   from examples.pndiode import create_pndiode_simulation
-
-   sim = create_pndiode_simulation()
-
-   # Print the deck
-   print(sim.generate_deck())
-
-   # Write to file
-   sim.write_deck("pndiode.inp")
-
-   # Run PADRE (if installed)
-   result = sim.run(padre_executable="padre")
-   print(result.stdout)
-
-Customizing Examples
---------------------
-
-The example functions can be modified for different device parameters:
-
-.. code-block:: python
-
-   from examples.pndiode import create_pndiode_simulation
-
-   # Create base simulation
-   sim = create_pndiode_simulation()
-
-   # Modify doping levels
-   sim._dopings.clear()
-   from nanohubpadre import Doping
-   sim.add_doping(Doping(region=1, p_type=True, concentration=5e16, uniform=True,
-                        x_left=0, x_right=0.5, y_top=0, y_bottom=1))
-   sim.add_doping(Doping(region=1, n_type=True, concentration=1e18, uniform=True,
-                        x_left=0.5, x_right=1.0, y_top=0, y_bottom=1))
-
-   # Change temperature
-   from nanohubpadre import Models
-   sim.models = Models(srh=True, conmob=True, fldmob=True, temperature=350)
-
-   print(sim.generate_deck())
-
-Creating New Device Structures
-------------------------------
-
-Use the examples as templates for your own devices:
-
-.. code-block:: python
-
-   from nanohubpadre import (
-       Simulation, Mesh, Region, Electrode, Doping,
-       Contact, Material, Models, System, Solve
-   )
-
-   def create_my_device():
-       sim = Simulation(title="My Custom Device")
-
-       # Define your mesh...
-       sim.mesh = Mesh(nx=..., ny=...)
-
-       # Add regions...
-       sim.add_region(Region(...))
-
-       # Continue with electrodes, doping, etc.
-
-       return sim
-
-   if __name__ == "__main__":
-       sim = create_my_device()
-       print(sim.generate_deck())
+   jupyter notebook examples/notebooks/06_MOS_Capacitor.ipynb
