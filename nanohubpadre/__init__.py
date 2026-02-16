@@ -90,7 +90,7 @@ from .outputs import (
     OutputEntry,
 )
 
-__version__ = "0.0.2"
+from ._version import __version__  # noqa: F401
 __all__ = [
     "Simulation",
     "Mesh", "XMesh", "YMesh", "ZMesh",

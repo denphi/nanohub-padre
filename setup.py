@@ -2,6 +2,12 @@
 Setup file for nanohub-padre - Python library for PADRE semiconductor device simulator.
 """
 
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanohubpadre"))
+from _version import __version__  # noqa: E402
+
 from setuptools import setup, find_packages
 
 with open("README.md", "r", encoding="utf-8") as fh:
@@ -9,7 +15,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="nanohub-padre",
-    version="0.0.2",
+    version=__version__,
     author="",
     author_email="",
     description="Python library for PADRE semiconductor device simulator",
@@ -23,12 +29,13 @@ setup(
         "Topic :: Scientific/Engineering :: Physics",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.7",
     install_requires=[],
     extras_require={
         "dev": ["pytest", "black", "mypy"],

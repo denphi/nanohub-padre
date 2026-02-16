@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nanohub-padre"
-version = "0.0.2"
+version = "0.0.4"
 description = "Python library for creating and running PADRE semiconductor device simulations"
 readme = "README.md"
 license = {text = "MIT"}
