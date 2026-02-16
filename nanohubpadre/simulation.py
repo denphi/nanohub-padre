@@ -1273,7 +1273,7 @@ class Simulation:
 
     def plot_iv(
         self,
-        current_electrode: int,
+        current_electrode: int = 1,
         voltage_electrode: Optional[int] = None,
         filename: Optional[str] = None,
         title: Optional[str] = None,
