@@ -1301,6 +1301,77 @@ class OutputManager:
 
         return "\n".join(lines)
 
+    # ------------------------------------------------------------------
+    # Manifest: persist and restore the output registry
+    # ------------------------------------------------------------------
+
+    MANIFEST_FILENAME = ".padre_outputs.json"
+
+    def save_manifest(self) -> None:
+        """
+        Write a manifest of all registered outputs to the working directory.
+
+        The manifest (``.padre_outputs.json``) records each output's name,
+        type, and variable so that :meth:`load_from_dir` can reconstruct the
+        registry in a later process without needing the original Simulation
+        commands.
+        """
+        import json
+        manifest = {}
+        for name, entry in self._entries.items():
+            manifest[name] = {
+                "output_type": entry.output_type.value,
+                "variable": entry.variable,
+            }
+        path = os.path.join(self.working_dir, self.MANIFEST_FILENAME)
+        with open(path, "w") as fh:
+            json.dump(manifest, fh, indent=2)
+
+    @classmethod
+    def load_from_dir(cls, working_dir: str) -> "OutputManager":
+        """
+        Reconstruct an OutputManager from an existing output directory.
+
+        Reads the manifest file (``.padre_outputs.json``) written by
+        :meth:`save_manifest` after a simulation run, registers all outputs,
+        and parses them from the files on disk.
+
+        Parameters
+        ----------
+        working_dir : str
+            Path to a PADRE output directory produced by a previous run.
+
+        Returns
+        -------
+        OutputManager
+            Fully populated manager ready for ``get_iv_data()``, ``get()``,
+            etc.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the manifest file does not exist in ``working_dir``.
+        """
+        import json
+        manifest_path = os.path.join(working_dir, cls.MANIFEST_FILENAME)
+        if not os.path.isfile(manifest_path):
+            raise FileNotFoundError(
+                "No manifest found in '{}'. The simulation may not have "
+                "been run yet, or was run with an older version of "
+                "nanohubpadre.".format(working_dir)
+            )
+        with open(manifest_path) as fh:
+            manifest = json.load(fh)
+
+        mgr = cls(working_dir=working_dir)
+        type_map = {t.value: t for t in OutputType}
+        for name, meta in manifest.items():
+            output_type = type_map.get(meta.get("output_type"), OutputType.SOLUTION)
+            variable = meta.get("variable", "")
+            mgr.register(name, output_type, variable=variable)
+        mgr.load_all()
+        return mgr
+
     def __repr__(self) -> str:
         total = len(self._entries)
         loaded = sum(1 for e in self._entries.values() if e.data is not None)

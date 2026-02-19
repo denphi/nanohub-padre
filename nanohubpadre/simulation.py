@@ -262,6 +262,42 @@ class Simulation:
         self._outputs.working_dir = self.working_dir
         self._outputs.load_all()
 
+    @classmethod
+    def from_dir(cls, working_dir: str) -> "Simulation":
+        """
+        Reconstruct a Simulation from an existing output directory.
+
+        Reads the manifest written by :meth:`run` and populates the output
+        manager so that all ``outputs.get_*()`` methods work without needing
+        to re-create or re-run the simulation.
+
+        Parameters
+        ----------
+        working_dir : str
+            Path to a directory produced by a previous ``sim.run()`` call.
+
+        Returns
+        -------
+        Simulation
+            Simulation object with outputs loaded from disk.
+
+        Raises
+        ------
+        FileNotFoundError
+            If ``working_dir`` does not exist or contains no manifest.
+
+        Example
+        -------
+        >>> sim = Simulation.from_dir("/home/user/.padre_cache/pn_diode_abc123")
+        >>> iv_dict = sim.outputs.get_iv_data()
+        """
+        from .outputs import OutputManager
+        if not os.path.isdir(working_dir):
+            raise FileNotFoundError("Directory not found: {}".format(working_dir))
+        sim = cls(working_dir=working_dir)
+        sim._outputs = OutputManager.load_from_dir(working_dir)
+        return sim
+
     # Device factory integration
     def device_schematic(self, **kwargs):
         """Generate an SVG cross-section schematic for this device.
@@ -1052,9 +1088,19 @@ class Simulation:
                 stderr=result.stderr or "",
             )
 
+        # Always save stdout+stderr to a run log for diagnostics
+        log_path = os.path.join(self.working_dir, ".padre_run.log")
+        with open(log_path, "w") as fh:
+            if result.stdout:
+                fh.write(result.stdout)
+            if result.stderr:
+                fh.write("\n--- stderr ---\n")
+                fh.write(result.stderr)
+
         # Automatically load outputs after successful run
         if result.returncode == 0:
             self._load_outputs()
+            self._outputs.save_manifest()
 
         return result
 

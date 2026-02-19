@@ -45,10 +45,28 @@ def _svg_rect(x, y, w, h, fill, stroke=None, stroke_width=1, rx=0):
     return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill}"{stroke_attr}{rx_attr}/>'
 
 
-def _svg_text(x, y, text, size=12, anchor="middle", color=None, bold=False):
+def _svg_text(x, y, text, size=12, anchor="middle", color=None, bold=False, data_attrs=None):
     color = color or COLORS["text"]
     weight = ' font-weight="bold"' if bold else ""
-    return f'<text x="{x}" y="{y}" font-family="Arial, sans-serif" font-size="{size}" fill="{color}" text-anchor="{anchor}"{weight}>{text}</text>'
+    extra = ""
+    if data_attrs:
+        for k, v in data_attrs.items():
+            extra += f' {k}="{v}"'
+    return f'<text x="{x}" y="{y}" font-family="Arial, sans-serif" font-size="{size}" fill="{color}" text-anchor="{anchor}"{weight}{extra}>{text}</text>'
+
+
+def _svg_param_label(x, y, text, param_name, value, size=10, color=None, anchor="middle"):
+    """Render a clickable/editable parameter label for interactive mode."""
+    color = color or COLORS["dim_line"]
+    return (
+        f'<g class="param-label" data-param="{param_name}" data-value="{value}" '
+        f'style="cursor:pointer">'
+        f'<rect x="{x - 30}" y="{y - size - 2}" width="60" height="{size + 6}" '
+        f'fill="rgba(255,255,255,0.7)" rx="3" stroke="{color}" stroke-width="0.5"/>'
+        f'<text x="{x}" y="{y}" font-family="Arial, sans-serif" font-size="{size}" '
+        f'fill="{color}" text-anchor="{anchor}" text-decoration="underline dotted">{text}</text>'
+        f'</g>'
+    )
 
 
 def _svg_line(x1, y1, x2, y2, color=None, width=1, dash=False):
@@ -57,7 +75,7 @@ def _svg_line(x1, y1, x2, y2, color=None, width=1, dash=False):
     return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{color}" stroke-width="{width}"{dash_attr}/>'
 
 
-def _svg_arrow_h(x1, x2, y, color=None, label=""):
+def _svg_arrow_h(x1, x2, y, color=None, label="", param_name=None, value=None):
     """Horizontal dimension arrow with label."""
     color = color or COLORS["dim_line"]
     parts = []
@@ -67,11 +85,14 @@ def _svg_arrow_h(x1, x2, y, color=None, label=""):
     parts.append(f'<polygon points="{x2},{y} {x2-5},{y-3} {x2-5},{y+3}" fill="{color}"/>')
     if label:
         mid = (x1 + x2) / 2
-        parts.append(_svg_text(mid, y - 5, label, size=10, color=color))
+        if param_name is not None:
+            parts.append(_svg_param_label(mid, y - 5, label, param_name, value, size=10, color=color))
+        else:
+            parts.append(_svg_text(mid, y - 5, label, size=10, color=color))
     return "\n".join(parts)
 
 
-def _svg_arrow_v(x, y1, y2, color=None, label="", side="right"):
+def _svg_arrow_v(x, y1, y2, color=None, label="", side="right", param_name=None, value=None):
     """Vertical dimension arrow with label."""
     color = color or COLORS["dim_line"]
     parts = []
@@ -83,7 +104,10 @@ def _svg_arrow_v(x, y1, y2, color=None, label="", side="right"):
         mid = (y1 + y2) / 2
         offset = 8 if side == "right" else -8
         anchor = "start" if side == "right" else "end"
-        parts.append(_svg_text(x + offset, mid + 4, label, size=10, color=color, anchor=anchor))
+        if param_name is not None:
+            parts.append(_svg_param_label(x + offset, mid + 4, label, param_name, value, size=10, color=color, anchor=anchor))
+        else:
+            parts.append(_svg_text(x + offset, mid + 4, label, size=10, color=color, anchor=anchor))
     return "\n".join(parts)
 
 
@@ -132,7 +156,7 @@ class DeviceSchematic:
 # ─────────────────────────────────────────────────────────
 
 def draw_pn_diode(length=1.0, width=1.0, junction_position=0.5,
-                  p_doping=1e17, n_doping=1e17, **kwargs):
+                  p_doping=1e17, n_doping=1e17, interactive=False, **kwargs):
     """Draw PN diode cross-section based on user parameters."""
     # Layout constants
     margin = 60
@@ -153,15 +177,23 @@ def draw_pn_diode(length=1.0, width=1.0, junction_position=0.5,
     # P-type region (left of junction)
     parts.append(_svg_rect(left, top, jx - left, dh, fill=COLORS["p_light"], stroke=COLORS["border"]))
     parts.append(_svg_text(left + (jx - left) / 2, top + dh / 2 - 10, "P", size=20, bold=True, color="#993333"))
-    parts.append(_svg_text(left + (jx - left) / 2, top + dh / 2 + 15,
-                           _fmt_doping(p_doping), size=11, color="#993333"))
+    if interactive:
+        parts.append(_svg_param_label(left + (jx - left) / 2, top + dh / 2 + 15,
+                                      _fmt_doping(p_doping), "p_doping", p_doping, size=11, color="#993333"))
+    else:
+        parts.append(_svg_text(left + (jx - left) / 2, top + dh / 2 + 15,
+                               _fmt_doping(p_doping), size=11, color="#993333"))
 
     # N-type region (right of junction)
     rw = dw - (jx - left)
     parts.append(_svg_rect(jx, top, rw, dh, fill=COLORS["n_light"], stroke=COLORS["border"]))
     parts.append(_svg_text(jx + rw / 2, top + dh / 2 - 10, "N", size=20, bold=True, color="#336699"))
-    parts.append(_svg_text(jx + rw / 2, top + dh / 2 + 15,
-                           _fmt_doping(n_doping), size=11, color="#336699"))
+    if interactive:
+        parts.append(_svg_param_label(jx + rw / 2, top + dh / 2 + 15,
+                                      _fmt_doping(n_doping), "n_doping", n_doping, size=11, color="#336699"))
+    else:
+        parts.append(_svg_text(jx + rw / 2, top + dh / 2 + 15,
+                               _fmt_doping(n_doping), size=11, color="#336699"))
 
     # Junction line
     parts.append(_svg_line(jx, top, jx, top + dh, color="#FF0000", width=2, dash=True))
@@ -172,11 +204,13 @@ def draw_pn_diode(length=1.0, width=1.0, junction_position=0.5,
     parts.append(_svg_electrode(left + dw - 60, top - elec_h, 60, elec_h, "Cathode"))
 
     # Dimensions
-    parts.append(_svg_arrow_h(left, left + dw, top + dh + 35, label=_fmt_dim(length)))
-    parts.append(_svg_arrow_v(left + dw + 15, top, top + dh, label=_fmt_dim(width), side="right"))
-
-    # Junction position dimension
-    parts.append(_svg_arrow_h(left, jx, top + dh + 55, label=_fmt_dim(junction_position * length)))
+    _ip = interactive
+    parts.append(_svg_arrow_h(left, left + dw, top + dh + 35, label=_fmt_dim(length),
+                              param_name="length" if _ip else None, value=length))
+    parts.append(_svg_arrow_v(left + dw + 15, top, top + dh, label=_fmt_dim(width), side="right",
+                              param_name="width" if _ip else None, value=width))
+    parts.append(_svg_arrow_h(left, jx, top + dh + 55, label=_fmt_dim(junction_position * length),
+                              param_name="junction_position" if _ip else None, value=junction_position))
 
     return _wrap_svg("\n".join(parts), width=620, height=top + dh + 80)
 
@@ -184,7 +218,7 @@ def draw_pn_diode(length=1.0, width=1.0, junction_position=0.5,
 def draw_mosfet(channel_length=0.025, gate_oxide_thickness=0.012,
                 junction_depth=0.018, device_width=0.125, device_depth=0.068,
                 channel_doping=1e19, substrate_doping=5e16,
-                source_drain_doping=1e20, device_type="nmos", **kwargs):
+                source_drain_doping=1e20, device_type="nmos", interactive=False, **kwargs):
     """Draw MOSFET cross-section based on user parameters."""
     is_nmos = device_type.lower() == "nmos"
     margin = 60
@@ -237,14 +271,23 @@ def draw_mosfet(channel_length=0.025, gate_oxide_thickness=0.012,
     # Channel region
     parts.append(_svg_rect(left + sd_w, top + ox_h, ch_w, jd_h, fill=ch_fill, stroke=COLORS["border"]))
     parts.append(_svg_text(left + sd_w + ch_w / 2, top + ox_h + jd_h / 2 - 5, ch_type, size=14, bold=True, color=ch_text_color))
-    parts.append(_svg_text(left + sd_w + ch_w / 2, top + ox_h + jd_h / 2 + 12, _fmt_doping(channel_doping), size=9, color=ch_text_color))
 
     # Substrate
     parts.append(_svg_rect(left, top + ox_h + jd_h, dw, sub_h, fill=sub_fill, stroke=COLORS["border"]))
     parts.append(_svg_text(left + dw / 2, top + ox_h + jd_h + sub_h / 2 - 5,
                            f"{ch_type}-substrate", size=14, bold=True, color=ch_text_color))
-    parts.append(_svg_text(left + dw / 2, top + ox_h + jd_h + sub_h / 2 + 12,
-                           _fmt_doping(substrate_doping), size=9, color=ch_text_color))
+    if interactive:
+        parts.append(_svg_param_label(left + dw / 2, top + ox_h + jd_h + sub_h / 2 + 12,
+                                      _fmt_doping(substrate_doping), "substrate_doping", substrate_doping,
+                                      size=9, color=ch_text_color))
+        parts.append(_svg_param_label(left + sd_w + ch_w / 2, top + ox_h + jd_h / 2 + 12,
+                                      _fmt_doping(channel_doping), "channel_doping", channel_doping,
+                                      size=9, color=ch_text_color))
+    else:
+        parts.append(_svg_text(left + dw / 2, top + ox_h + jd_h + sub_h / 2 + 12,
+                               _fmt_doping(substrate_doping), size=9, color=ch_text_color))
+        parts.append(_svg_text(left + sd_w + ch_w / 2, top + ox_h + jd_h / 2 + 12,
+                               _fmt_doping(channel_doping), size=9, color=ch_text_color))
 
     # Filler oxide over S/D (visual only, thin)
     parts.append(_svg_rect(left, top, sd_w, ox_h, fill=COLORS["oxide"], stroke=COLORS["border"]))
@@ -258,11 +301,16 @@ def draw_mosfet(channel_length=0.025, gate_oxide_thickness=0.012,
     parts.append(_svg_electrode(left + dw * 0.3, top + ox_h + jd_h + sub_h, dw * 0.4, elec_h, "Substrate"))
 
     # Dimensions
+    _ip = interactive
     dh_total_actual = ox_h + jd_h + sub_h
-    parts.append(_svg_arrow_h(left, left + dw, top + dh_total_actual + elec_h + 20, label=_fmt_dim(device_width)))
-    parts.append(_svg_arrow_h(left + sd_w, left + sd_w + ch_w, top - elec_h - 15, label=_fmt_dim(channel_length)))
-    parts.append(_svg_arrow_v(left + dw + 15, top, top + ox_h, label=_fmt_dim(gate_oxide_thickness), side="right"))
-    parts.append(_svg_arrow_v(left + dw + 15, top + ox_h, top + ox_h + jd_h, label=_fmt_dim(junction_depth), side="right"))
+    parts.append(_svg_arrow_h(left, left + dw, top + dh_total_actual + elec_h + 20, label=_fmt_dim(device_width),
+                              param_name="device_width" if _ip else None, value=device_width))
+    parts.append(_svg_arrow_h(left + sd_w, left + sd_w + ch_w, top - elec_h - 15, label=_fmt_dim(channel_length),
+                              param_name="channel_length" if _ip else None, value=channel_length))
+    parts.append(_svg_arrow_v(left + dw + 15, top, top + ox_h, label=_fmt_dim(gate_oxide_thickness), side="right",
+                              param_name="gate_oxide_thickness" if _ip else None, value=gate_oxide_thickness))
+    parts.append(_svg_arrow_v(left + dw + 15, top + ox_h, top + ox_h + jd_h, label=_fmt_dim(junction_depth), side="right",
+                              param_name="junction_depth" if _ip else None, value=junction_depth))
 
     total_svg_h = top + dh_total_actual + elec_h + 50
     return _wrap_svg("\n".join(parts), width=620, height=total_svg_h)
@@ -270,7 +318,7 @@ def draw_mosfet(channel_length=0.025, gate_oxide_thickness=0.012,
 
 def draw_bjt(emitter_width=1.0, base_width=0.5, collector_width=2.0,
              device_depth=1.0, emitter_doping=1e20, base_doping=1e17,
-             collector_doping=1e16, device_type="npn", **kwargs):
+             collector_doping=1e16, device_type="npn", interactive=False, **kwargs):
     """Draw BJT cross-section based on user parameters."""
     is_npn = device_type.lower() == "npn"
     margin = 60
@@ -303,19 +351,28 @@ def draw_bjt(emitter_width=1.0, base_width=0.5, collector_width=2.0,
     parts.append(_svg_rect(left, top, ew, dh, fill=e_fill, stroke=COLORS["border"]))
     parts.append(_svg_text(left + ew / 2, top + dh / 2 - 10, e_type, size=18, bold=True, color=e_tc))
     parts.append(_svg_text(left + ew / 2, top + dh / 2 + 10, "Emitter", size=10, color=e_tc))
-    parts.append(_svg_text(left + ew / 2, top + dh / 2 + 25, _fmt_doping(emitter_doping), size=9, color=e_tc))
+    if interactive:
+        parts.append(_svg_param_label(left + ew / 2, top + dh / 2 + 25, _fmt_doping(emitter_doping), "emitter_doping", emitter_doping, size=9, color=e_tc))
+    else:
+        parts.append(_svg_text(left + ew / 2, top + dh / 2 + 25, _fmt_doping(emitter_doping), size=9, color=e_tc))
 
     # Base
     parts.append(_svg_rect(left + ew, top, bw, dh, fill=b_fill, stroke=COLORS["border"]))
     parts.append(_svg_text(left + ew + bw / 2, top + dh / 2 - 10, b_type, size=18, bold=True, color=b_tc))
     parts.append(_svg_text(left + ew + bw / 2, top + dh / 2 + 10, "Base", size=10, color=b_tc))
-    parts.append(_svg_text(left + ew + bw / 2, top + dh / 2 + 25, _fmt_doping(base_doping), size=9, color=b_tc))
+    if interactive:
+        parts.append(_svg_param_label(left + ew + bw / 2, top + dh / 2 + 25, _fmt_doping(base_doping), "base_doping", base_doping, size=9, color=b_tc))
+    else:
+        parts.append(_svg_text(left + ew + bw / 2, top + dh / 2 + 25, _fmt_doping(base_doping), size=9, color=b_tc))
 
     # Collector
     parts.append(_svg_rect(left + ew + bw, top, cw, dh, fill=c_fill, stroke=COLORS["border"]))
     parts.append(_svg_text(left + ew + bw + cw / 2, top + dh / 2 - 10, c_type, size=18, bold=True, color=c_tc))
     parts.append(_svg_text(left + ew + bw + cw / 2, top + dh / 2 + 10, "Collector", size=10, color=c_tc))
-    parts.append(_svg_text(left + ew + bw + cw / 2, top + dh / 2 + 25, _fmt_doping(collector_doping), size=9, color=c_tc))
+    if interactive:
+        parts.append(_svg_param_label(left + ew + bw + cw / 2, top + dh / 2 + 25, _fmt_doping(collector_doping), "collector_doping", collector_doping, size=9, color=c_tc))
+    else:
+        parts.append(_svg_text(left + ew + bw + cw / 2, top + dh / 2 + 25, _fmt_doping(collector_doping), size=9, color=c_tc))
 
     # Junction lines
     parts.append(_svg_line(left + ew, top, left + ew, top + dh, color="#FF0000", width=2, dash=True))
@@ -327,10 +384,15 @@ def draw_bjt(emitter_width=1.0, base_width=0.5, collector_width=2.0,
     parts.append(_svg_electrode(left + dw - min(cw, 70), top - elec_h, min(cw, 70), elec_h, "C"))
 
     # Dimensions
-    parts.append(_svg_arrow_h(left, left + ew, top + dh + elec_h + 15, label=_fmt_dim(emitter_width)))
-    parts.append(_svg_arrow_h(left + ew, left + ew + bw, top + dh + elec_h + 15, label=_fmt_dim(base_width)))
-    parts.append(_svg_arrow_h(left + ew + bw, left + dw, top + dh + elec_h + 15, label=_fmt_dim(collector_width)))
-    parts.append(_svg_arrow_v(left + dw + 15, top, top + dh, label=_fmt_dim(device_depth), side="right"))
+    _ip = interactive
+    parts.append(_svg_arrow_h(left, left + ew, top + dh + elec_h + 15, label=_fmt_dim(emitter_width),
+                              param_name="emitter_width" if _ip else None, value=emitter_width))
+    parts.append(_svg_arrow_h(left + ew, left + ew + bw, top + dh + elec_h + 15, label=_fmt_dim(base_width),
+                              param_name="base_width" if _ip else None, value=base_width))
+    parts.append(_svg_arrow_h(left + ew + bw, left + dw, top + dh + elec_h + 15, label=_fmt_dim(collector_width),
+                              param_name="collector_width" if _ip else None, value=collector_width))
+    parts.append(_svg_arrow_v(left + dw + 15, top, top + dh, label=_fmt_dim(device_depth), side="right",
+                              param_name="device_depth" if _ip else None, value=device_depth))
 
     return _wrap_svg("\n".join(parts), width=620, height=top + dh + elec_h + 45)
 
@@ -339,7 +401,7 @@ def draw_mesfet(channel_length=0.2, gate_length=0.2, device_width=0.6,
                 channel_depth=0.2, substrate_depth=0.8,
                 channel_doping=1e17, substrate_doping=1e17,
                 contact_doping=1e20, device_type="n",
-                gate_workfunction=4.87, **kwargs):
+                gate_workfunction=4.87, interactive=False, **kwargs):
     """Draw MESFET cross-section based on user parameters."""
     is_n = device_type.lower() == "n"
     margin = 60
@@ -380,8 +442,9 @@ def draw_mesfet(channel_length=0.2, gate_length=0.2, device_width=0.6,
     parts.append(_svg_rect(left, top + ch_h, dw, sub_h, fill=sub_fill, stroke=COLORS["border"]))
     parts.append(_svg_text(left + dw / 2, top + ch_h + sub_h / 2 - 5,
                            f"{sub_type}-substrate", size=14, bold=True, color=sub_tc))
-    parts.append(_svg_text(left + dw / 2, top + ch_h + sub_h / 2 + 12,
-                           _fmt_doping(substrate_doping), size=9, color=sub_tc))
+    if not interactive:
+        parts.append(_svg_text(left + dw / 2, top + ch_h + sub_h / 2 + 12,
+                               _fmt_doping(substrate_doping), size=9, color=sub_tc))
 
     # Source contact region (top-left)
     parts.append(_svg_rect(left, top, src_w, ch_h, fill=sd_fill, stroke=COLORS["border"]))
@@ -393,8 +456,9 @@ def draw_mesfet(channel_length=0.2, gate_length=0.2, device_width=0.6,
     parts.append(_svg_rect(ch_x, top, ch_px_w, ch_h, fill=ch_fill, stroke=COLORS["border"]))
     parts.append(_svg_text(ch_x + ch_px_w / 2, top + ch_h / 2 - 5,
                            f"{ch_type}-channel", size=12, bold=True, color=ch_tc))
-    parts.append(_svg_text(ch_x + ch_px_w / 2, top + ch_h / 2 + 12,
-                           _fmt_doping(channel_doping), size=9, color=ch_tc))
+    if not interactive:
+        parts.append(_svg_text(ch_x + ch_px_w / 2, top + ch_h / 2 + 12,
+                               _fmt_doping(channel_doping), size=9, color=ch_tc))
 
     # Drain contact region (top-right)
     parts.append(_svg_rect(left + dw - drn_w, top, drn_w, ch_h, fill=sd_fill, stroke=COLORS["border"]))
@@ -409,13 +473,24 @@ def draw_mesfet(channel_length=0.2, gate_length=0.2, device_width=0.6,
                            f"WF={gate_workfunction}V", size=9, color=COLORS["schottky"]))
 
     # Dimensions
+    _ip = interactive
     dh_total_actual = ch_h + sub_h
-    parts.append(_svg_arrow_h(left, left + dw, top + dh_total_actual + 15, label=_fmt_dim(device_width)))
+    parts.append(_svg_arrow_h(left, left + dw, top + dh_total_actual + 15, label=_fmt_dim(device_width),
+                              param_name="device_width" if _ip else None, value=device_width))
     parts.append(_svg_arrow_h(left + gate_start_px, left + gate_start_px + gate_w,
-                              top - elec_h - 18, label=_fmt_dim(gate_length)))
-    parts.append(_svg_arrow_v(left + dw + 15, top, top + ch_h, label=_fmt_dim(channel_depth), side="right"))
+                              top - elec_h - 18, label=_fmt_dim(gate_length),
+                              param_name="gate_length" if _ip else None, value=gate_length))
+    parts.append(_svg_arrow_v(left + dw + 15, top, top + ch_h, label=_fmt_dim(channel_depth), side="right",
+                              param_name="channel_depth" if _ip else None, value=channel_depth))
     parts.append(_svg_arrow_v(left + dw + 15, top + ch_h, top + dh_total_actual,
-                              label=_fmt_dim(substrate_depth), side="right"))
+                              label=_fmt_dim(substrate_depth), side="right",
+                              param_name="substrate_depth" if _ip else None, value=substrate_depth))
+
+    if interactive:
+        parts.append(_svg_param_label(left + dw / 2, top + ch_h + sub_h / 2 + 12,
+                                      _fmt_doping(substrate_doping), "substrate_doping", substrate_doping, size=9, color=sub_tc))
+        parts.append(_svg_param_label(ch_x + ch_px_w / 2, top + ch_h / 2 + 12,
+                                      _fmt_doping(channel_doping), "channel_doping", channel_doping, size=9, color=ch_tc))
 
     return _wrap_svg("\n".join(parts), width=620, height=top + dh_total_actual + 45)
 
@@ -424,7 +499,7 @@ def draw_mos_capacitor(oxide_thickness=0.002, silicon_thickness=0.03,
                        device_width=1.0, substrate_doping=1e18,
                        substrate_type="p", gate_type="n_poly",
                        gate_config="single", back_oxide_thickness=0.002,
-                       back_gate_type="n_poly", **kwargs):
+                       back_gate_type="n_poly", interactive=False, **kwargs):
     """Draw MOS Capacitor cross-section based on user parameters."""
     is_double = gate_config.lower() == "double"
     margin = 60
@@ -492,7 +567,7 @@ def draw_mos_capacitor(oxide_thickness=0.002, silicon_thickness=0.03,
 
 
 def draw_schottky_diode(length=2.0, width=1.0, doping=1e16,
-                        doping_type="n", workfunction=4.8, **kwargs):
+                        doping_type="n", workfunction=4.8, interactive=False, **kwargs):
     """Draw Schottky Diode cross-section based on user parameters."""
     margin = 60
     elec_h = 22
@@ -516,15 +591,22 @@ def draw_schottky_diode(length=2.0, width=1.0, doping=1e16,
     parts.append(_svg_rect(left, top, dw, dh, fill=si_fill, stroke=COLORS["border"]))
     parts.append(_svg_text(left + dw / 2, top + dh / 2 - 15,
                            f"{si_type}-type Si", size=18, bold=True, color=si_tc))
-    parts.append(_svg_text(left + dw / 2, top + dh / 2 + 10,
-                           _fmt_doping(doping), size=12, color=si_tc))
+    if interactive:
+        parts.append(_svg_param_label(left + dw / 2, top + dh / 2 + 10,
+                                      _fmt_doping(doping), "doping", doping, size=12, color=si_tc))
+    else:
+        parts.append(_svg_text(left + dw / 2, top + dh / 2 + 10,
+                               _fmt_doping(doping), size=12, color=si_tc))
 
     # Ohmic contact (bottom)
     parts.append(_svg_electrode(left, top + dh, dw, elec_h, "Ohmic Contact"))
 
     # Dimensions
-    parts.append(_svg_arrow_v(left - 15, top, top + dh, label=_fmt_dim(width), side="left"))
-    parts.append(_svg_arrow_h(left, left + dw, top + dh + elec_h + 15, label=_fmt_dim(length)))
+    _ip = interactive
+    parts.append(_svg_arrow_v(left - 15, top, top + dh, label=_fmt_dim(width), side="left",
+                              param_name="width" if _ip else None, value=width))
+    parts.append(_svg_arrow_h(left, left + dw, top + dh + elec_h + 15, label=_fmt_dim(length),
+                              param_name="length" if _ip else None, value=length))
 
     return _wrap_svg("\n".join(parts), width=580, height=top + dh + elec_h + 45)
 
@@ -533,7 +615,7 @@ def draw_solar_cell(emitter_depth=0.5, base_thickness=200.0, device_width=1.0,
                     emitter_doping=1e19, base_doping=1e16,
                     device_type="n_on_p",
                     front_surface_velocity=1e4, back_surface_velocity=1e7,
-                    **kwargs):
+                    interactive=False, **kwargs):
     """Draw Solar Cell cross-section based on user parameters."""
     margin = 60
     elec_h = 22
@@ -574,8 +656,6 @@ def draw_solar_cell(emitter_depth=0.5, base_thickness=200.0, device_width=1.0,
     parts.append(_svg_rect(left, top, dw, em_h, fill=em_fill, stroke=COLORS["border"]))
     parts.append(_svg_text(left + dw / 2, top + em_h / 2 - 5,
                            f"{em_type} Emitter", size=14, bold=True, color=em_tc))
-    parts.append(_svg_text(left + dw / 2, top + em_h / 2 + 12,
-                           _fmt_doping(emitter_doping), size=10, color=em_tc))
 
     # Junction line
     parts.append(_svg_line(left, top + em_h, left + dw, top + em_h, color="#FF0000", width=2, dash=True))
@@ -584,8 +664,6 @@ def draw_solar_cell(emitter_depth=0.5, base_thickness=200.0, device_width=1.0,
     parts.append(_svg_rect(left, top + em_h, dw, base_h, fill=base_fill, stroke=COLORS["border"]))
     parts.append(_svg_text(left + dw / 2, top + em_h + base_h / 2 - 5,
                            f"{base_type} Base", size=14, bold=True, color=base_tc))
-    parts.append(_svg_text(left + dw / 2, top + em_h + base_h / 2 + 12,
-                           _fmt_doping(base_doping), size=10, color=base_tc))
 
     # Back contact
     parts.append(_svg_electrode(left, top + em_h + base_h, dw, elec_h, "Back Contact"))
@@ -598,12 +676,27 @@ def draw_solar_cell(emitter_depth=0.5, base_thickness=200.0, device_width=1.0,
                            f"S_back={back_surface_velocity:.0e} cm/s", size=9,
                            color="#666666", anchor="start"))
 
+    if interactive:
+        parts.append(_svg_param_label(left + dw / 2, top + em_h / 2 + 12,
+                                      _fmt_doping(emitter_doping), "emitter_doping", emitter_doping, size=10, color=em_tc))
+        parts.append(_svg_param_label(left + dw / 2, top + em_h + base_h / 2 + 12,
+                                      _fmt_doping(base_doping), "base_doping", base_doping, size=10, color=base_tc))
+    else:
+        parts.append(_svg_text(left + dw / 2, top + em_h / 2 + 12,
+                               _fmt_doping(emitter_doping), size=10, color=em_tc))
+        parts.append(_svg_text(left + dw / 2, top + em_h + base_h / 2 + 12,
+                               _fmt_doping(base_doping), size=10, color=base_tc))
+
     # Dimensions
-    parts.append(_svg_arrow_v(left - 15, top, top + em_h, label=_fmt_dim(emitter_depth), side="left"))
+    _ip = interactive
+    parts.append(_svg_arrow_v(left - 15, top, top + em_h, label=_fmt_dim(emitter_depth), side="left",
+                              param_name="emitter_depth" if _ip else None, value=emitter_depth))
     parts.append(_svg_arrow_v(left - 15, top + em_h, top + em_h + base_h,
-                              label=_fmt_dim(base_thickness), side="left"))
+                              label=_fmt_dim(base_thickness), side="left",
+                              param_name="base_thickness" if _ip else None, value=base_thickness))
     parts.append(_svg_arrow_h(left, left + dw, top + em_h + base_h + elec_h + 15,
-                              label=_fmt_dim(device_width)))
+                              label=_fmt_dim(device_width),
+                              param_name="device_width" if _ip else None, value=device_width))
 
     return _wrap_svg("\n".join(parts), width=620, height=top + em_h + base_h + elec_h + 45)
 
@@ -623,13 +716,16 @@ _DRAW_FUNCTIONS = {
 }
 
 
-def device_schematic(device_name, **kwargs):
+def device_schematic(device_name, interactive=False, **kwargs):
     """Generate an SVG cross-section schematic for a device.
 
     Parameters
     ----------
     device_name : str
         Device name (e.g., 'pn_diode', 'mosfet', 'mesfet')
+    interactive : bool
+        If True, dimension/doping labels are wrapped in clickable groups with
+        ``data-param`` attributes for use in web UIs. Default False.
     **kwargs
         Device geometry and doping parameters matching the factory function.
         Only geometry/doping/contact parameters affect the schematic.
@@ -649,5 +745,5 @@ def device_schematic(device_name, **kwargs):
         available = ", ".join(_DRAW_FUNCTIONS.keys())
         raise ValueError(f"Unknown device '{device_name}'. Available: {available}")
 
-    svg = _DRAW_FUNCTIONS[device_name](**kwargs)
+    svg = _DRAW_FUNCTIONS[device_name](interactive=interactive, **kwargs)
     return DeviceSchematic(svg)

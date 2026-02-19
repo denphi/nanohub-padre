@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools-scm[toml]>=6.2"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "nanohub-padre"
-version = "0.0.4"
+dynamic = ["version"]
 description = "Python library for creating and running PADRE semiconductor device simulations"
 readme = "README.md"
 license = {text = "MIT"}
@@ -42,6 +42,9 @@ docs = [
 Documentation = "https://nanohub-padre.readthedocs.io/"
 Repository = "https://github.com/nanohub/padre"
 Issues = "https://github.com/nanohub/padre/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "nanohubpadre._version.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["nanohubpadre*"]
