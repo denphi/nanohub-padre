@@ -701,12 +701,100 @@ def draw_solar_cell(emitter_depth=0.5, base_thickness=200.0, device_width=1.0,
     return _wrap_svg("\n".join(parts), width=620, height=top + em_h + base_h + elec_h + 45)
 
 
+def draw_pin_diode(length=2.0, width=1.0, p_width=0.5, i_width=1.0, n_width=0.5,
+                   p_doping=1e18, i_doping=1e13, n_doping=1e18,
+                   interactive=False, **kwargs):
+    """Draw PiN diode cross-section with three distinct regions."""
+    margin = 60
+    elec_h = 22
+    dw = 480
+    dh = 180
+    top = margin + elec_h + 5
+    left = margin
+
+    total = p_width + i_width + n_width
+    if total <= 0:
+        total = 1.0
+    p_frac = p_width / total
+    i_frac = i_width / total
+    # n_frac = n_width / total  (remainder)
+
+    p_w = dw * p_frac
+    i_w = dw * i_frac
+    n_w = dw - p_w - i_w
+
+    p_x = left
+    i_x = left + p_w
+    n_x = i_x + i_w
+
+    _ip = interactive
+    parts = []
+
+    # Title
+    parts.append(_svg_text(left + dw / 2, 20, "PiN Diode", size=16, bold=True))
+
+    # P region
+    parts.append(_svg_rect(p_x, top, p_w, dh, fill=COLORS["p_light"], stroke=COLORS["border"]))
+    parts.append(_svg_text(p_x + p_w / 2, top + dh / 2 - 10, "P", size=20, bold=True, color="#993333"))
+    if _ip:
+        parts.append(_svg_param_label(p_x + p_w / 2, top + dh / 2 + 15,
+                                      _fmt_doping(p_doping), "p_doping", p_doping, size=10, color="#993333"))
+    else:
+        parts.append(_svg_text(p_x + p_w / 2, top + dh / 2 + 15,
+                               _fmt_doping(p_doping), size=10, color="#993333"))
+
+    # Intrinsic region (very light fill)
+    i_fill = "#f0f4f8"
+    parts.append(_svg_rect(i_x, top, i_w, dh, fill=i_fill, stroke=COLORS["border"]))
+    parts.append(_svg_text(i_x + i_w / 2, top + dh / 2 - 10, "i", size=20, bold=True, color="#5a7a9a"))
+    if _ip:
+        parts.append(_svg_param_label(i_x + i_w / 2, top + dh / 2 + 15,
+                                      _fmt_doping(i_doping), "i_doping", i_doping, size=10, color="#5a7a9a"))
+    else:
+        parts.append(_svg_text(i_x + i_w / 2, top + dh / 2 + 15,
+                               _fmt_doping(i_doping), size=10, color="#5a7a9a"))
+
+    # N region
+    parts.append(_svg_rect(n_x, top, n_w, dh, fill=COLORS["n_light"], stroke=COLORS["border"]))
+    parts.append(_svg_text(n_x + n_w / 2, top + dh / 2 - 10, "N", size=20, bold=True, color="#336699"))
+    if _ip:
+        parts.append(_svg_param_label(n_x + n_w / 2, top + dh / 2 + 15,
+                                      _fmt_doping(n_doping), "n_doping", n_doping, size=10, color="#336699"))
+    else:
+        parts.append(_svg_text(n_x + n_w / 2, top + dh / 2 + 15,
+                               _fmt_doping(n_doping), size=10, color="#336699"))
+
+    # Junction lines
+    parts.append(_svg_line(i_x, top, i_x, top + dh, color="#CC4444", width=2, dash=True))
+    parts.append(_svg_line(n_x, top, n_x, top + dh, color="#4444CC", width=2, dash=True))
+
+    # Electrodes
+    parts.append(_svg_electrode(p_x, top - elec_h, 60, elec_h, "Anode"))
+    parts.append(_svg_electrode(left + dw - 60, top - elec_h, 60, elec_h, "Cathode"))
+
+    # Dimension arrows
+    parts.append(_svg_arrow_h(left, left + dw, top + dh + 35,
+                              label=_fmt_dim(length),
+                              param_name="length" if _ip else None, value=length))
+    parts.append(_svg_arrow_v(left + dw + 15, top, top + dh, label=_fmt_dim(width), side="right",
+                              param_name="width" if _ip else None, value=width))
+    parts.append(_svg_arrow_h(p_x, i_x, top + dh + 55,
+                              label=_fmt_dim(p_width),
+                              param_name="p_width" if _ip else None, value=p_width))
+    parts.append(_svg_arrow_h(i_x, n_x, top + dh + 55,
+                              label=_fmt_dim(i_width),
+                              param_name="i_width" if _ip else None, value=i_width))
+
+    return _wrap_svg("\n".join(parts), width=620, height=top + dh + 85)
+
+
 # ─────────────────────────────────────────────────────────
 # Dispatcher
 # ─────────────────────────────────────────────────────────
 
 _DRAW_FUNCTIONS = {
     "pn_diode": draw_pn_diode,
+    "pin_diode": draw_pin_diode,
     "mosfet": draw_mosfet,
     "bjt": draw_bjt,
     "mesfet": draw_mesfet,
