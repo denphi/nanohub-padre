@@ -183,7 +183,7 @@ def create_schottky_diode(
             v_start, v_end, v_step = forward_sweep
             nsteps = int(abs(v_end - v_start) / abs(v_step))
             sim.add_solve(Solve(
-                previous=True, v1=v_start, vstep=v_step,
+                project=True, v1=v_start, vstep=v_step,
                 nsteps=nsteps, electrode=1, outfile="fwd"
             ))
             if log_bands_bias:
@@ -198,7 +198,7 @@ def create_schottky_diode(
             v_start, v_end, v_step = reverse_sweep
             nsteps = int(abs(v_end - v_start) / abs(v_step))
             sim.add_solve(Solve(
-                previous=True, v1=v_start, vstep=v_step,
+                project=True, v1=v_start, vstep=v_step,
                 nsteps=nsteps, electrode=1, outfile="rev"
             ))
             if log_bands_bias:
