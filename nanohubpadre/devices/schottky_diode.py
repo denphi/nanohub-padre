@@ -164,10 +164,6 @@ def create_schottky_diode(
     sim.models = Models(temperature=temperature, srh=srh, conmob=conmob, fldmob=fldmob)
     sim.system = System(electrons=True, holes=True, newton=True)
 
-    # I-V logging
-    if log_iv:
-        sim.add_log(Log(ivfile=iv_file))
-
     # Add solve commands if sweeps are specified
     if forward_sweep is not None or reverse_sweep is not None or log_bands_eq:
         sim.add_solve(Solve(initial=True, outfile="eq"))
@@ -182,6 +178,9 @@ def create_schottky_diode(
         if forward_sweep is not None:
             v_start, v_end, v_step = forward_sweep
             nsteps = int(abs(v_end - v_start) / abs(v_step))
+            # Switch log file to forward sweep file before the sweep
+            if log_iv:
+                sim.add_log(Log(ivfile=f"{iv_file}_fwd"))
             # Only 1 prior solution (initial): use previous=True for first sweep
             sim.add_solve(Solve(
                 previous=True, v1=v_start, vstep=v_step,
@@ -198,6 +197,9 @@ def create_schottky_diode(
         if reverse_sweep is not None:
             v_start, v_end, v_step = reverse_sweep
             nsteps = int(abs(v_end - v_start) / abs(v_step))
+            # Switch log file to reverse sweep file before the sweep
+            if log_iv:
+                sim.add_log(Log(ivfile=f"{iv_file}_rev"))
             # If forward sweep ran first, 2+ solutions exist → project=True
             # Otherwise only 1 prior solution → previous=True
             use_project = forward_sweep is not None
@@ -213,6 +215,9 @@ def create_schottky_diode(
                     x_end=0.0, y_end=width,
                     include_qf=True
                 )
+    elif log_iv:
+        # No sweeps — just log whatever solves the user adds manually
+        sim.add_log(Log(ivfile=iv_file))
 
     return sim
 
