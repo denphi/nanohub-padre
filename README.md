@@ -4,7 +4,7 @@ A Python library for creating and running PADRE semiconductor device simulations
 
 ## Overview
 
-nanohub-padre provides a Pythonic interface to generate PADRE input decks, making it easier to set up complex device simulations programmatically. PADRE (Physics-based Accurate Device Resolution and Evaluation) is a 2D/3D device simulator that solves the drift-diffusion equations for semiconductor devices.
+nanohub-padre provides a Pythonic interface to generate PADRE input decks, making it easier to set up complex device simulations programmatically. PADRE is a 2D/3D device simulator that solves the drift-diffusion equations for semiconductor devices.
 
 ## Features
 
