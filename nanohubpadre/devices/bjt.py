@@ -237,11 +237,11 @@ def create_bjt(
             v_start, v_end, v_step = vce_sweep
             nsteps = int(abs(v_end - v_start) / abs(v_step))
 
-            # Set base-emitter voltage first
+            # Set base-emitter voltage first (only 1 prior solution: use previous=True)
             if abs(vbe) > 1e-10:
-                sim.add_solve(Solve(project=True, v2=vbe, electrode=2, outfile="vbe_set_sol"))
+                sim.add_solve(Solve(previous=True, v2=vbe, electrode=2, outfile="vbe_set_sol"))
 
-            # Sweep collector-emitter voltage (electrode 3 = collector)
+            # Sweep collector-emitter voltage (2 prior solutions now exist: use project=True)
             sim.add_solve(Solve(
                 project=True,
                 v3=v_start,
@@ -256,11 +256,11 @@ def create_bjt(
             v_start, v_end, v_step = gummel_sweep
             nsteps = int(abs(v_end - v_start) / abs(v_step))
 
-            # Set collector-emitter voltage first
+            # Set collector-emitter voltage first (only 1 prior solution: use previous=True)
             if abs(gummel_vce) > 1e-10:
-                sim.add_solve(Solve(project=True, v3=gummel_vce, electrode=3, outfile="vce_set_sol"))
+                sim.add_solve(Solve(previous=True, v3=gummel_vce, electrode=3, outfile="vce_set_sol"))
 
-            # Sweep base-emitter voltage (electrode 2 = base)
+            # Sweep base-emitter voltage (2 prior solutions now exist: use project=True)
             sim.add_solve(Solve(
                 project=True,
                 v2=v_start,

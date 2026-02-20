@@ -157,6 +157,14 @@ def create_mosfet(
         contour_vds=contour_vds, contour_quantities=contour_quantities,
     )
 
+    # Validate geometry
+    if channel_length >= device_width:
+        raise ValueError(
+            f"channel_length ({channel_length} µm) must be less than device_width "
+            f"({device_width} µm). Use device_width > channel_length + 0.1 µm "
+            f"to leave room for source/drain regions."
+        )
+
     # Calculate dimensions
     sd_width = (device_width - channel_length) / 2
     total_height = device_depth + junction_depth + gate_oxide_thickness
@@ -247,11 +255,11 @@ def create_mosfet(
             v_start, v_end, v_step = vgs_sweep
             nsteps = int(abs(v_end - v_start) / abs(v_step))
 
-            # Set initial drain voltage
+            # Set initial drain voltage (only 1 prior solution: use previous=True)
             if abs(vds) > 1e-10:
-                sim.add_solve(Solve(project=True, v2=vds, electrode=2, outfile="vd_set"))
+                sim.add_solve(Solve(previous=True, v2=vds, electrode=2, outfile="vd_set"))
 
-            # Sweep gate voltage
+            # Sweep gate voltage (2 prior solutions now exist: use project=True)
             sim.add_solve(Solve(
                 project=True,
                 v3=v_start,
@@ -276,10 +284,11 @@ def create_mosfet(
             nsteps = int(abs(v_end - v_start) / abs(v_step))
 
             # Set initial gate voltage if not already in transfer mode
+            # (only 1 prior solution: use previous=True)
             if vgs_sweep is None and abs(vgs) > 1e-10:
-                sim.add_solve(Solve(project=True, v3=vgs, electrode=3, outfile="vg_set"))
+                sim.add_solve(Solve(previous=True, v3=vgs, electrode=3, outfile="vg_set"))
 
-            # Sweep drain voltage
+            # Sweep drain voltage (2 prior solutions now exist: use project=True)
             sim.add_solve(Solve(
                 project=True,
                 v2=v_start,
@@ -330,12 +339,14 @@ def create_mosfet(
             # Bias solve for contour maps (only if no other sweep already applied bias)
             if vgs_sweep is None and vds_sweep is None:
                 # Apply Vgs (gate = electrode 3)
+                # Only 1 prior solution here → previous=True
                 if abs(contour_vgs) > 1e-10:
                     sim.add_solve(Solve(
-                        project=True, v3=contour_vgs,
+                        previous=True, v3=contour_vgs,
                         electrode=3, outfile="contour_vgs_set"
                     ))
                 # Apply Vds in steps (drain = electrode 2)
+                # 2 prior solutions now exist → project=True
                 if abs(contour_vds) > 1e-10:
                     n_steps = max(1, int(abs(contour_vds) / 0.1))
                     v_step = contour_vds / n_steps

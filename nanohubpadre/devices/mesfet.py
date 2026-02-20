@@ -237,11 +237,11 @@ def create_mesfet(
             v_start, v_end, v_step = vds_sweep
             nsteps = int(abs(v_end - v_start) / abs(v_step))
 
-            # Set gate-source voltage first
+            # Set gate-source voltage first (only 1 prior solution: use previous=True)
             if abs(vgs) > 1e-10:
-                sim.add_solve(Solve(project=True, v3=vgs, electrode=3, outfile="vgs_set"))
+                sim.add_solve(Solve(previous=True, v3=vgs, electrode=3, outfile="vgs_set"))
 
-            # Sweep drain-source voltage (electrode 2 = drain)
+            # Sweep drain-source voltage (2 prior solutions now exist: use project=True)
             sim.add_solve(Solve(
                 project=True,
                 v2=v_start,
@@ -283,11 +283,12 @@ def create_mesfet(
             # Bias solve for contour maps (only if no other sweep already applied bias)
             if vds_sweep is None:
                 # Apply Vds in steps (drain = electrode 2)
+                # Only 1 prior solution here → previous=True for first step
                 if abs(contour_vds_bias) > 1e-10:
                     n_steps = max(1, int(abs(contour_vds_bias) / 0.1))
                     v_step = contour_vds_bias / n_steps
                     sim.add_solve(Solve(
-                        project=True, v2=0.0,
+                        previous=True, v2=0.0,
                         vstep=v_step, nsteps=n_steps,
                         electrode=2, outfile="contour_bias"
                     ))

@@ -182,8 +182,9 @@ def create_schottky_diode(
         if forward_sweep is not None:
             v_start, v_end, v_step = forward_sweep
             nsteps = int(abs(v_end - v_start) / abs(v_step))
+            # Only 1 prior solution (initial): use previous=True for first sweep
             sim.add_solve(Solve(
-                project=True, v1=v_start, vstep=v_step,
+                previous=True, v1=v_start, vstep=v_step,
                 nsteps=nsteps, electrode=1, outfile="fwd"
             ))
             if log_bands_bias:
@@ -197,8 +198,12 @@ def create_schottky_diode(
         if reverse_sweep is not None:
             v_start, v_end, v_step = reverse_sweep
             nsteps = int(abs(v_end - v_start) / abs(v_step))
+            # If forward sweep ran first, 2+ solutions exist → project=True
+            # Otherwise only 1 prior solution → previous=True
+            use_project = forward_sweep is not None
             sim.add_solve(Solve(
-                project=True, v1=v_start, vstep=v_step,
+                project=use_project, previous=not use_project,
+                v1=v_start, vstep=v_step,
                 nsteps=nsteps, electrode=1, outfile="rev"
             ))
             if log_bands_bias:

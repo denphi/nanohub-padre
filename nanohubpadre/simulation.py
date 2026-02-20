@@ -1005,6 +1005,16 @@ class Simulation:
                 # Use just the filename if we're in the same directory
                 deck_path = os.path.basename(deck_path)
 
+        # On nanoHUB, auto-load the PADRE module if 'padre' is not yet on PATH
+        if os.environ.get('ENVIRON_CONFIG_DIRS') and padre_executable == "padre":
+            import shutil as _shutil
+            if not _shutil.which("padre"):
+                try:
+                    from nanohubpadre.use import load_padre
+                    load_padre()
+                except Exception:
+                    pass  # Best-effort; subprocess will raise a clear error if still not found
+
         # Build command
         if use_stdin:
             cmd = [padre_executable]
