@@ -26,11 +26,11 @@ def create_schottky_diode(
     doping_type: str = "n",
     # Contact parameters
     workfunction: float = 4.8,
-    barrier_lowering: bool = True,
-    surf_rec: bool = True,
+    barrier_lowering: bool = False,
+    surf_rec: bool = False,
     # Physical models
     temperature: float = 300,
-    srh: bool = True,
+    srh: bool = False,
     conmob: bool = True,
     fldmob: bool = True,
     # Simulation options
@@ -66,13 +66,13 @@ def create_schottky_diode(
     workfunction : float
         Metal workfunction in V (default: 4.8)
     barrier_lowering : bool
-        Enable image-force barrier lowering (default: True)
+        Enable image-force barrier lowering (default: False)
     surf_rec : bool
-        Enable surface recombination at contact (default: True)
+        Enable surface recombination at contact (default: False)
     temperature : float
         Simulation temperature in Kelvin (default: 300)
     srh : bool
-        Enable Shockley-Read-Hall recombination (default: True)
+        Enable Shockley-Read-Hall recombination (default: False)
     conmob : bool
         Enable concentration-dependent mobility (default: True)
     fldmob : bool
