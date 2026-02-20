@@ -266,12 +266,12 @@ DEVICE_PARAMS = {
             ]),
             ("Contact", [
                 ("workfunction", "float", 4.8, "V", "Metal workfunction"),
-                ("barrier_lowering", "bool", True, "", "Image-force barrier lowering"),
-                ("surf_rec", "bool", True, "", "Surface recombination at contact"),
+                ("barrier_lowering", "bool", False, "", "Image-force barrier lowering"),
+                ("surf_rec", "bool", False, "", "Surface recombination at contact"),
             ]),
             ("Physical Models", [
                 ("temperature", "float", 300, "K", "Simulation temperature"),
-                ("srh", "bool", True, "", "Shockley-Read-Hall recombination"),
+                ("srh", "bool", False, "", "Shockley-Read-Hall recombination"),
                 ("conmob", "bool", True, "", "Concentration-dependent mobility"),
                 ("fldmob", "bool", True, "", "Field-dependent mobility"),
             ]),
