@@ -1,96 +1,92 @@
 #!/usr/bin/env python3
 """
-Bipolar Junction Transistor (BJT) Example using Device Factory
+n-p-n bipolar transistor: Gummel-number theory vs. PADRE.
 
-Demonstrates how to create and simulate an NPN BJT for
-common-emitter characteristics using the create_bjt factory function.
+Companion script to notebooks/05_BJT.ipynb.
+
+Device (factory default): n+ emitter 1e20 cm^-3 (1 um), p base 1e17 cm^-3
+(0.5 um), n collector 1e16 cm^-3 (2 um). Electrodes: 1 = emitter,
+2 = base (contact on top of the base), 3 = collector.
+
+What this script checks
+-----------------------
+1. Collector current from the base Gummel number
+       Ic = q A ni^2 Dn / (N_B W_B) exp(qVbe/kT),
+   with W_B the *quasi-neutral* base width (0.38 um of the 0.5 um).
+   Expect agreement within a few %.
+2. Current gain beta = Ic/Ib. Textbooks set ni(emitter) = ni(base) and
+   predict beta ~ 8500 for this device. At 1e20 cm^-3 band-gap narrowing
+   (Slotboom: ~125 meV) raises the emitter's effective ni^2 ~124x, so the
+   base current rises ~100x and beta ~ 85. PADRE includes BGN.
+3. Ideality factors of Ic and Ib: 1 in diffusion theory.
+
+Run:  python bjt_example.py
 """
 
-from nanohubpadre import create_bjt, Solve, Log, Plot1D, Load
+import shutil
+
+import numpy as np
+
+from nanohubpadre import create_bjt
+
+Q, KT, NI, EPS_SI = 1.602e-19, 0.025851, 9.963e9, 11.8 * 8.854e-14
+NE, NB, NCOL = 1e20, 1e17, 1e16
+AREA = 1e-8                                    # 1 um tall x 1 um deep (cm^2)
+
+
+def bgn(n):
+    """Slotboom-de Graaff band-gap narrowing (eV)."""
+    x = np.log(n / 1e17)
+    return 9e-3 * (x + np.sqrt(x * x + 0.5))
+
+
+def compare(name, textbook, padre, why):
+    print(f"  {name:<30} textbook {textbook:10.4g}   PADRE {padre:10.4g}   "
+          f"({(padre - textbook) / textbook * 100:+7.1f} %)  {why}")
 
 
 def main():
-    # Create an NPN BJT with custom parameters
-    sim = create_bjt(
-        emitter_width=1.0,          # 1 micron emitter width
-        base_width=0.3,             # 300nm base width (thin for high gain)
-        collector_width=2.0,        # 2 micron collector width
-        device_depth=1.0,           # 1 micron device depth
-        emitter_doping=1e20,        # N+ emitter: 1e20 cm^-3
-        base_doping=1e17,           # P base: 1e17 cm^-3
-        collector_doping=1e16,      # N- collector: 1e16 cm^-3
-        device_type="npn",          # NPN transistor
-        temperature=300,            # Room temperature
-        srh=True,                   # Enable SRH recombination
-        auger=True,                 # Enable Auger recombination
-        bgn=True,                   # Enable band-gap narrowing
-        conmob=True,                # Enable concentration-dependent mobility
-        fldmob=True,                # Enable field-dependent mobility
-        title="NPN BJT - Common Emitter Characteristics"
-    )
+    sim = create_bjt(log_iv=True, iv_file="gummel", gummel_sweep=(0.3, 0.8, 0.025), gummel_vce=2.0)
+    if shutil.which("padre") is None:
+        print(sim.generate_deck())
+        print("\nPADRE not found on PATH: showing the input deck only.")
+        return
+    if sim.run().returncode != 0:
+        raise SystemExit("PADRE failed; see .padre_run.log in " + sim.working_dir)
 
-    # Solve for equilibrium
-    sim.add_solve(Solve(initial=True, outfile="initsol"))
+    iv = sim.get_iv_data()
+    vbe, ib, ic = iv.get_voltages(2), np.abs(iv.get_currents(2)), np.abs(iv.get_currents(3))
+    k = np.argmin(abs(vbe - 0.6))
 
-    # Plot initial band diagram along device
-    total_width = 1.0 + 0.3 + 2.0
-    sim.add_command(Plot1D(
-        band_con=True,
-        x_start=0, x_end=total_width,
-        y_start=0.5, y_end=0.5,
-        ascii=True, outfile="ec_eq"
-    ))
-    sim.add_command(Plot1D(
-        band_val=True,
-        x_start=0, x_end=total_width,
-        y_start=0.5, y_end=0.5,
-        ascii=True, outfile="ev_eq"
-    ))
+    # quasi-neutral base width at Vbe = 0.6 V, Vce = 2 V
+    x_eb = np.sqrt(2 * EPS_SI * (KT * np.log(NE * NB / NI ** 2) - 0.6) / (Q * NB))
+    w_cb = np.sqrt(2 * EPS_SI * (KT * np.log(NB * NCOL / NI ** 2) + 1.4) / Q * (1 / NB + 1 / NCOL))
+    wb = 0.5e-4 - x_eb - w_cb * NCOL / (NB + NCOL)
 
-    # =========================================
-    # Common-Emitter Output Characteristics
-    # =========================================
-    # Forward bias the base-emitter junction
-    sim.add_solve(Solve(v2=0, vstep=0.1, nsteps=7, electrode=2))  # Vbe = 0.7V
-    sim.add_solve(Solve(v2=0.7, outfile="vbe_07"))
+    dn_b = 739.6 * KT                           # PADRE conmob, electrons in 1e17
+    dp_e = 49.0 * KT                            # holes in 1e20 (Masetti fit)
+    tau_e = 1 / (1 / 1e-7 + 2.8e-31 * NE ** 2)  # SRH || Auger in the emitter
+    lp_e = np.sqrt(dp_e * tau_e)
 
-    # Enable I-V logging for collector current
-    sim.add_log(Log(ivfile="ic_vce"))
+    def gain(with_bgn):
+        ni2_b = NI ** 2 * (np.exp(bgn(NB) / KT) if with_bgn else 1)
+        ni2_e = NI ** 2 * (np.exp(bgn(NE) / KT) if with_bgn else 1)
+        ic0 = Q * AREA * ni2_b * dn_b / (NB * wb)
+        ib0 = Q * AREA * ni2_e * dp_e / (NE * lp_e) / np.tanh(1e-4 / lp_e)
+        return ic0, ib0
 
-    # Collector voltage sweep (Vce = 0 to 3V)
-    sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=30, electrode=3))
+    ic0, ib0 = gain(True)
+    ic0_tb, ib0_tb = gain(False)
+    m = (vbe >= 0.45) & (vbe <= 0.65)
+    n_c = 1 / (KT * np.polyfit(vbe[m], np.log(ic[m]), 1)[0])
+    n_b = 1 / (KT * np.polyfit(vbe[m], np.log(ib[m]), 1)[0])
 
-    # Plot carrier distributions in active mode
-    sim.add_command(Plot1D(
-        electrons=True,
-        x_start=0, x_end=total_width,
-        y_start=0.5, y_end=0.5,
-        ascii=True, outfile="n_active"
-    ))
-    sim.add_command(Plot1D(
-        holes=True,
-        x_start=0, x_end=total_width,
-        y_start=0.5, y_end=0.5,
-        ascii=True, outfile="p_active"
-    ))
-
-    # =========================================
-    # Gummel Plot (Ic, Ib vs Vbe)
-    # =========================================
-    sim.add_log(Log(off=True))
-    sim.add_load(Load(infile="initsol"))
-
-    # Enable logging for Gummel plot
-    sim.add_log(Log(ivfile="gummel"))
-
-    # Sweep Vbe with fixed Vce
-    sim.add_solve(Solve(v3=2.0))  # Fixed Vce = 2V
-    sim.add_solve(Solve(v2=0, vstep=0.05, nsteps=16, electrode=2))  # Vbe sweep
-
-    sim.add_log(Log(off=True))
-
-    # Generate and print the input deck
-    print(sim.generate_deck())
+    print(f"BJT: textbook vs PADRE  (quasi-neutral base width {wb * 1e4:.3f} um)")
+    compare("Ic at 0.6 V (A/um)", ic0 * np.exp(0.6 / KT), ic[k], "base physics: simple and well modelled")
+    compare("beta, textbook (no BGN)", ic0_tb / ib0_tb, ic[k] / ib[k], "BGN raises emitter ni^2 ~124x")
+    compare("beta, with Slotboom BGN", ic0 / ib0, ic[k] / ib[k], "same physics as PADRE")
+    compare("ideality n_C", 1.0, n_c, "diffusion")
+    compare("ideality n_B", 1.0, n_b, "emitter injection dominates I_B")
 
 
 if __name__ == "__main__":

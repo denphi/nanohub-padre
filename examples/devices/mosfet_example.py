@@ -1,90 +1,94 @@
 #!/usr/bin/env python3
 """
-MOSFET Example using Device Factory
+n-MOSFET: long-channel textbook theory vs. a 0.15 um device simulated in 2-D.
 
-Demonstrates how to create and simulate an NMOS transistor for
-transfer and output characteristics using the create_mosfet factory function.
+Companion script to notebooks/04_MOSFET.ipynb.
+
+Device (factory default, the nanoHUB MOSFET reference): n+ poly gate,
+tox = 2 nm, L = 0.15 um, 20 nm deep p-type channel layer 1e18 cm^-3 on a
+5e16 cm^-3 substrate, n+ source/drain 2e20 cm^-3.
+Electrodes: 1 = source, 2 = drain, 3 = gate, 4 = substrate.
+
+What this script checks
+-----------------------
+1. Threshold voltage. The uniform-body formula
+       V_T = V_FB + 2 phi_F + sqrt(2 q eps_s N_A 2 phi_F) / C_ox
+   overestimates it: the 1e18 layer is thinner than the maximum depletion
+   width (~35 nm), so the depletion region reaches the lightly doped
+   substrate. And "V_T" depends on how you extract it (max-gm vs constant
+   current): state the definition.
+2. Subthreshold swing S = ln(10) kT/q (1 + C_d/C_ox): PADRE is within
+   ~1 mV/dec here, since the 2 nm oxide keeps gate control strong.
+3. DIBL: zero in long-channel theory; ~17 mV/V here (a 2-D effect).
+4. Saturation current vs. the absolute velocity-saturation bound
+   W C_ox v_sat (V_G - V_T): PADRE reaches roughly half of it.
+
+Not in PADRE or the textbook: gate tunnelling through 2 nm SiO2, inversion
+layer quantisation, poly depletion, source/drain series resistance.
+
+Run:  python mosfet_example.py
 """
 
-from nanohubpadre import create_mosfet, Solve, Log, Plot3D, Load
+import shutil
+
+import numpy as np
+
+from nanohubpadre import create_mosfet
+
+Q, KT, NI, EG = 1.602e-19, 0.025851, 9.963e9, 1.12
+EPS_SI, EPS_OX = 11.8 * 8.854e-14, 3.9 * 8.854e-14
+COX = EPS_OX / 2e-7                                   # F/cm^2 for 2 nm
+L_UM = 0.15
+
+
+def compare(name, textbook, padre, why):
+    diff = f"({(padre - textbook) / textbook * 100:+6.1f} %)" if textbook else "   (n/a) "
+    print(f"  {name:<32} textbook {textbook:10.4g}   PADRE {padre:10.4g}   {diff}  {why}")
+
+
+def transfer(vds):
+    sim = create_mosfet(log_iv=True, vgs_sweep=(0.0, 1.5, 0.025), vds=vds)
+    if sim.run().returncode != 0:
+        raise SystemExit("PADRE failed; see .padre_run.log in " + sim.working_dir)
+    iv = sim.get_iv_data()
+    vg, idr = iv.get_voltages(3), np.abs(iv.get_currents(2))
+    _, u = np.unique(vg, return_index=True)
+    return vg[u], idr[u]
 
 
 def main():
-    # Create an NMOS transistor with custom parameters
-    sim = create_mosfet(
-        channel_length=0.025,        # 25nm channel length
-        gate_oxide_thickness=0.012,  # 12nm gate oxide
-        junction_depth=0.018,        # 18nm junction depth
-        device_width=0.125,          # 125nm device width
-        device_depth=0.068,          # 68nm substrate depth
-        channel_doping=1e19,         # Channel doping: 1e19 cm^-3
-        substrate_doping=5e16,       # Substrate doping: 5e16 cm^-3
-        source_drain_doping=1e20,    # S/D doping: 1e20 cm^-3
-        device_type="nmos",          # NMOS transistor
-        temperature=300,             # Room temperature
-        bgn=True,                    # Enable band-gap narrowing
-        carriers=1,                  # Single carrier (electrons)
-        title="NMOS Transistor - DC Characteristics"
-    )
+    if shutil.which("padre") is None:
+        print(create_mosfet(log_iv=True, vgs_sweep=(0.0, 1.5, 0.025), vds=0.05).generate_deck())
+        print("\nPADRE not found on PATH: showing the input deck only.")
+        return
 
-    # Plot initial doping profile
-    sim.add_command(Plot3D(doping=True, outfile="doping"))
+    vg_lin, id_lin = transfer(0.05)
+    vg_sat, id_sat = transfer(1.2)
 
-    # Solve for equilibrium
-    sim.add_solve(Solve(initial=True, outfile="initsol"))
-    sim.add_command(Plot3D(potential=True, electrons=True, outfile="equilibrium"))
+    phi_f = KT * np.log(1e18 / NI)
+    vfb = -(EG / 2 + phi_f)
+    vt_uniform = vfb + 2 * phi_f + np.sqrt(2 * Q * EPS_SI * 1e18 * 2 * phi_f) / COX
 
-    # =========================================
-    # Transfer Characteristic (Id vs Vgs)
-    # =========================================
-    # Small drain bias
-    sim.add_solve(Solve(v2=0, vstep=0.05, nsteps=1, electrode=2))
-    sim.add_solve(Solve(v2=0.05))
+    gm = np.gradient(id_lin, vg_lin)
+    k = np.argmax(gm)
+    vt_maxgm = vg_lin[k] - id_lin[k] / gm[k] - 0.025
+    icc = 1e-7 / L_UM
+    vt_cc_lin = np.interp(np.log(icc), np.log(id_lin), vg_lin)
+    vt_cc_sat = np.interp(np.log(icc), np.log(id_sat), vg_sat)
 
-    # Enable I-V logging for transfer curve
-    sim.add_log(Log(ivfile="idvg"))
+    sub = (vg_lin < 0.5) & (id_lin > 0)
+    swing = 1e3 * np.min(np.gradient(vg_lin[sub], np.log10(id_lin[sub]))[2:-2])
+    w_dep = 40.5e-7                                   # step-profile depletion width at V_T (cm)
+    swing_th = 1e3 * np.log(10) * KT * (1 + EPS_SI / w_dep / COX)
 
-    # Gate voltage sweep: 0 to 1.5V
-    sim.add_solve(Solve(v3=0, vstep=0.1, nsteps=15, electrode=3))
-    sim.add_log(Log(off=True))
-
-    # =========================================
-    # Output Characteristics (Id vs Vds)
-    # =========================================
-    # Reload equilibrium and set up gate bias points
-    sim.add_load(Load(infile="initsol"))
-
-    # Save solutions at different gate voltages
-    sim.add_solve(Solve(v3=0.0, outfile="vg0"))
-    sim.add_solve(Solve(v3=0.0, vstep=0.1, nsteps=5, electrode=3))
-    sim.add_solve(Solve(v3=0.5, outfile="vg1"))
-    sim.add_solve(Solve(v3=0.5, vstep=0.1, nsteps=5, electrode=3))
-    sim.add_solve(Solve(v3=1.0, outfile="vg2"))
-    sim.add_solve(Solve(v3=1.0, vstep=0.1, nsteps=5, electrode=3))
-    sim.add_solve(Solve(v3=1.5, outfile="vg3"))
-
-    # Enable I-V logging for output curves
-    sim.add_log(Log(ivfile="idvd"))
-
-    # Drain sweeps at each gate voltage
-    sim.add_load(Load(infile="vg0"))
-    sim.add_solve(Solve(v2=0, vstep=0.1, nsteps=20, electrode=2))
-
-    sim.add_load(Load(infile="vg1"))
-    sim.add_solve(Solve(v2=0, vstep=0.1, nsteps=20, electrode=2))
-
-    sim.add_load(Load(infile="vg2"))
-    sim.add_solve(Solve(v2=0, vstep=0.1, nsteps=20, electrode=2))
-
-    sim.add_load(Load(infile="vg3"))
-    sim.add_solve(Solve(v2=0, vstep=0.1, nsteps=20, electrode=2))
-    sim.add_log(Log(off=True))
-
-    # Final plot showing on-state
-    sim.add_command(Plot3D(potential=True, electrons=True, outfile="on_state"))
-
-    # Generate and print the input deck
-    print(sim.generate_deck())
+    print("MOSFET (L = 0.15 um): textbook vs PADRE")
+    compare("V_T (V), uniform-body formula", vt_uniform, vt_maxgm, "shallow 1e18 layer; max-gm definition")
+    compare("V_T (V), constant-current", vt_uniform, vt_cc_lin, "a different definition, a different V_T")
+    compare("subthreshold swing (mV/dec)", swing_th, swing, "gate control still strong at 2 nm oxide")
+    compare("DIBL (mV/V)", 0.0, 1e3 * (vt_cc_lin - vt_cc_sat) / 1.15, "drain field reaches the source barrier")
+    bound = 1e-4 * COX * 1.03e7 * (1.5 - vt_maxgm)
+    compare("Id(Vg=1.5, Vd=1.2) vs vsat bound", bound, id_sat[-1], "carriers at the source are below v_sat")
+    print(f"  on/off ratio at Vd = 1.2 V: {id_sat[-1] / id_sat[0]:.1e}")
 
 
 if __name__ == "__main__":

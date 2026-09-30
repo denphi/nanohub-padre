@@ -1,126 +1,59 @@
 #!/usr/bin/env python3
 """
-Solar Cell Example using Device Factory
+Silicon solar cell structure, and an honest limit of the simulation.
 
-Demonstrates how to create and simulate a silicon solar cell
-using the create_solar_cell factory function.
+Device (factory default): n+ emitter (Gaussian, 1e19 cm^-3 peak, 0.5 um deep)
+on a 200 um p-type base doped 1e16 cm^-3, front and back surface
+recombination velocities, SRH + Auger recombination.
+
+What this script shows
+----------------------
+1. The structure: equilibrium band diagram of the shallow n+/p junction.
+2. Why create_solar_cell() is marked *experimental*. The dark current of a
+   good 200 um cell at small forward bias is ~1e-17 A per um of depth or
+   less, which is at PADRE's numerical noise floor. You can SEE this with an
+   exact identity: terminal currents must satisfy I1 + I2 = 0 (Kirchhoff).
+   Where the imbalance exceeds ~1 %, the "current" is round-off, not physics.
+   Increasing device_z_width does not help: it scales signal and noise
+   together.
+
+The textbook dark current, J0 = q ni^2 Dn / (N_A L_n), is the physics a
+solar cell's open-circuit voltage depends on; this device cannot resolve it,
+so do not read I-V, ideality or V_oc from it.
+
+Run:  python solar_cell_example.py
 """
 
-from nanohubpadre import create_solar_cell, Solve, Log, Plot1D
+import shutil
+import warnings
+
+import numpy as np
+
+from nanohubpadre import create_solar_cell
 
 
 def main():
-    # Create an N-on-P solar cell with custom parameters
-    sim = create_solar_cell(
-        emitter_depth=0.5,               # 500nm emitter junction depth
-        base_thickness=200.0,            # 200 micron base thickness
-        device_width=1.0,                # 1 micron width (1D-like)
-        emitter_doping=1e19,             # N+ emitter: 1e19 cm^-3
-        base_doping=1e16,                # P base: 1e16 cm^-3
-        device_type="n_on_p",            # N-on-P structure
-        temperature=300,                 # Room temperature
-        srh=True,                        # Enable SRH recombination
-        auger=True,                      # Enable Auger recombination
-        conmob=True,                     # Enable concentration-dependent mobility
-        fldmob=True,                     # Enable field-dependent mobility
-        taun0=1e-5,                      # Electron lifetime: 10 microseconds
-        taup0=1e-5,                      # Hole lifetime: 10 microseconds
-        front_surface_velocity=1e4,      # Front SRV: 1e4 cm/s
-        back_surface_velocity=1e7,       # Back SRV: 1e7 cm/s (BSF)
-        title="Silicon Solar Cell - I-V Analysis"
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")          # the factory's "experimental" warning
+        sim = create_solar_cell(log_bands_eq=True, log_iv=True, forward_sweep=(0.0, 0.4, 0.05))
 
-    # Solve for equilibrium (dark, zero bias)
-    sim.add_solve(Solve(initial=True))
+    if shutil.which("padre") is None:
+        print(sim.generate_deck())
+        print("\nPADRE not found on PATH: showing the input deck only.")
+        return
+    if sim.run().returncode != 0:
+        raise SystemExit("PADRE failed; see .padre_run.log in " + sim.working_dir)
 
-    # Plot doping profile
-    total_depth = 0.5 + 200.0
-    sim.add_command(Plot1D(
-        doping=True,
-        logarithm=True,
-        absolute=True,
-        y_start=0, y_end=total_depth,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="doping"
-    ))
+    ec = sim.outputs.get("cbeq")
+    print(f"Band bending across the junction: {abs(ec.y[0] - ec.y[-1]):.3f} eV "
+          f"(textbook Vbi for 1e19/1e16: {0.025851 * np.log(1e35 / 9.963e9 ** 2):.3f} V)")
 
-    # Plot equilibrium band diagram
-    sim.add_command(Plot1D(
-        band_con=True,
-        y_start=0, y_end=10.0,  # Plot first 10 microns (junction region)
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="ec_eq"
-    ))
-    sim.add_command(Plot1D(
-        band_val=True,
-        y_start=0, y_end=10.0,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="ev_eq"
-    ))
-
-    # =========================================
-    # Dark I-V Characteristic
-    # =========================================
-    sim.add_log(Log(ivfile="iv_dark"))
-
-    # Forward bias sweep (typical solar cell operating range)
-    sim.add_solve(Solve(previous=True))
-    sim.add_solve(Solve(
-        v1=0,
-        vstep=0.05,
-        nsteps=15,
-        electrode=1
-    ))
-
-    sim.add_log(Log(off=True))
-
-    # =========================================
-    # Analysis at Maximum Power Point (approx)
-    # =========================================
-    # Reload equilibrium
-    sim.add_solve(Solve(initial=True))
-
-    # Bias to approximate Vmp (around 0.5V for silicon)
-    sim.add_solve(Solve(v1=0, vstep=0.1, nsteps=5, electrode=1))
-
-    # Plot carrier distributions at operating point
-    sim.add_command(Plot1D(
-        electrons=True,
-        y_start=0, y_end=10.0,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="n_op"
-    ))
-    sim.add_command(Plot1D(
-        holes=True,
-        y_start=0, y_end=10.0,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="p_op"
-    ))
-
-    # Plot recombination rate
-    sim.add_command(Plot1D(
-        recomb=True,
-        y_start=0, y_end=10.0,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="recomb"
-    ))
-
-    # Plot current densities
-    sim.add_command(Plot1D(
-        j_electr=True,
-        y_start=0, y_end=10.0,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="jn"
-    ))
-    sim.add_command(Plot1D(
-        j_hole=True,
-        y_start=0, y_end=10.0,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="jp"
-    ))
-
-    # Generate and print the input deck
-    print(sim.generate_deck())
+    iv = sim.get_iv_data()
+    v, i, err = iv.get_voltages(1), np.abs(iv.get_currents(1)), iv.continuity_error()
+    print("\n  V (V)     |I| (A/um)   |I1+I2|/|I|")
+    for vk, ik, ek in zip(v, i, err):
+        tag = "  <- numerical noise, not physics" if ek > 0.01 else ""
+        print(f"  {vk:5.2f}   {ik:11.3e}   {ek:10.1e}{tag}")
 
 
 if __name__ == "__main__":

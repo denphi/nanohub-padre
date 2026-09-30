@@ -1,85 +1,79 @@
 #!/usr/bin/env python3
 """
-MOS Capacitor Example using Device Factory
+MOS capacitor: textbook C-V formulas vs. PADRE.
 
-Demonstrates how to create and simulate a MOS capacitor for C-V analysis
-using the create_mos_capacitor factory function.
+Companion script to notebooks/06_MOS_Capacitor.ipynb (which also implements
+the exact classical C-V curve point by point).
+
+Device (factory default): n+ poly gate, 2 nm SiO2, 5 um p-type Si 1e16 cm^-3,
+ohmic back contact, gate 0.999 um x 1 um (the reference mesh starts at
+x = 0.001 um).
+
+What this script checks
+-----------------------
+1. Accumulation capacitance vs. C_ox = eps_ox A / t_ox: PADRE is ~5 % below,
+   because the accumulation layer has a finite thickness (a capacitor in
+   series with the oxide). The exact classical theory agrees with PADRE.
+2. High-frequency C_min vs. Sze's formula
+       C_min = eps_ox / (t_ox + (eps_ox/eps_s) W_m),  W_m = sqrt(4 eps_s phi_F / q N_A):
+   PADRE is ~3 % lower, because in strong inversion the surface potential
+   rises a little past the textbook's 2 phi_F.
+3. Low-frequency C-V. PADRE's small-signal (AC) solve is unreliable at the
+   1 Hz needed for an inversion response (charge conservation C11 + C12 = 0
+   fails badly), so we use the quasi-static curve C = dQ_gate/dV_gate from
+   the DC solutions: it returns to ~C_ox in inversion, as theory says.
+
+Run:  python mos_capacitor_example.py
 """
 
-from nanohubpadre import create_mos_capacitor, Solve, Log, Plot1D
+import os
+import shutil
+import warnings
+
+import numpy as np
+
+from nanohubpadre import create_mos_capacitor
+from nanohubpadre.parser import parse_ac_file
+
+Q, KT, NI = 1.602e-19, 0.025851, 9.963e9
+EPS_SI, EPS_OX = 11.8 * 8.854e-14, 3.9 * 8.854e-14
+NA, TOX = 1e16, 2e-7
+AREA = 0.999e-4 * 1e-4
+
+
+def compare(name, textbook, padre, why):
+    print(f"  {name:<28} textbook {textbook:10.4g}   PADRE {padre:10.4g}   "
+          f"({(padre - textbook) / textbook * 100:+6.1f} %)  {why}")
 
 
 def main():
-    # Create a MOS capacitor with custom parameters
-    sim = create_mos_capacitor(
-        oxide_thickness=0.002,      # 2nm gate oxide
-        silicon_thickness=0.03,     # 30nm silicon thickness
-        device_width=1.0,           # 1 micron width
-        substrate_doping=1e18,      # P-type substrate: 1e18 cm^-3
-        substrate_type="p",         # P-type substrate
-        oxide_permittivity=3.9,     # SiO2 permittivity
-        gate_type="n_poly",         # N+ polysilicon gate
-        temperature=300,            # Room temperature
-        title="MOS Capacitor - C-V Analysis"
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")    # the 1 Hz AC warning: handled below
+        sim = create_mos_capacitor(log_cv=True, log_cv_lf=True, vg_sweep=(-2.0, 2.0, 0.1))
+    if shutil.which("padre") is None:
+        print(sim.generate_deck())
+        print("\nPADRE not found on PATH: showing the input deck only.")
+        return
+    if sim.run().returncode != 0:
+        raise SystemExit("PADRE failed; see .padre_run.log in " + sim.working_dir)
 
-    # Solve for equilibrium (zero gate bias)
-    sim.add_solve(Solve(initial=True))
+    hf = parse_ac_file(os.path.join(sim.working_dir, "cv_data"))
+    lf = parse_ac_file(os.path.join(sim.working_dir, "cv_lf_data"))
+    vg, c_hf = hf.get_cv_data(gate_electrode=1)
+    vq, c_qs = hf.get_quasistatic_cv(gate_electrode=1)
 
-    # Plot initial band diagram (vertical cut)
-    total_thickness = 0.002 + 0.03
-    sim.add_command(Plot1D(
-        potential=True,
-        y_start=0, y_end=total_thickness,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="pot_eq"
-    ))
-    sim.add_command(Plot1D(
-        band_con=True,
-        y_start=0, y_end=total_thickness,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="ec_eq"
-    ))
-    sim.add_command(Plot1D(
-        electrons=True,
-        y_start=0, y_end=total_thickness,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="n_eq"
-    ))
+    cox = EPS_OX / TOX * AREA
+    phi_f = KT * np.log(NA / NI)
+    wm = np.sqrt(4 * EPS_SI * phi_f / (Q * NA))
+    cmin = EPS_OX / (TOX + EPS_OX / EPS_SI * wm) * AREA
 
-    # Sweep gate voltage into accumulation
-    sim.add_solve(Solve(v1=0, vstep=-0.2, nsteps=10, electrode=1))
-
-    # Enable AC analysis logging for C-V extraction
-    sim.add_log(Log(acfile="cv_data"))
-
-    # C-V sweep from accumulation to inversion
-    sim.add_solve(Solve(
-        v1=-2.0,
-        vstep=0.2,
-        nsteps=20,
-        electrode=1,
-        ac_analysis=True,
-        frequency=1e6  # 1 MHz measurement frequency
-    ))
-    sim.add_log(Log(off=True))
-
-    # Plot inversion condition
-    sim.add_command(Plot1D(
-        potential=True,
-        y_start=0, y_end=total_thickness,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="pot_inv"
-    ))
-    sim.add_command(Plot1D(
-        electrons=True,
-        y_start=0, y_end=total_thickness,
-        x_start=0.5, x_end=0.5,
-        ascii=True, outfile="n_inv"
-    ))
-
-    # Generate and print the input deck
-    print(sim.generate_deck())
+    print("MOS capacitor: textbook vs PADRE (capacitances in F)")
+    compare("C accumulation (-2 V)", cox, c_hf[0], "finite accumulation-layer thickness")
+    compare("C_min, high frequency", cmin, c_hf.min(), "psi_s exceeds 2 phi_F in inversion")
+    compare("C quasi-static (+2 V)", cox, c_qs[-1], "inversion layer follows at low frequency")
+    err = lf.conservation_error()
+    print(f"  1 Hz AC solve: worst |C11+C12|/|C11| = {err.max():.0%} "
+          f"-> do not use get_cv_data() on the LF file; use get_quasistatic_cv().")
 
 
 if __name__ == "__main__":
