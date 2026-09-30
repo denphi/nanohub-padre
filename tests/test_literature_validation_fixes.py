@@ -197,3 +197,19 @@ class TestSchottkyBarrierLowering:
         from nanohubpadre.devices import create_schottky_diode
         with pytest.warns(UserWarning, match="barrier lowering"):
             create_schottky_diode(barrier_lowering=True)
+
+
+class TestFloatRoundOffInDecks:
+    """0.6 + 1.2 == 1.7999999999999998 in floating point.  The mesh card
+    rounded it to l=1.8 while the doping card printed the raw value, so the
+    last mesh node fell outside the n-type box and the contact node was
+    undoped (measured on nanoHUB: n = p = n_i at the cathode)."""
+
+    def test_doping_box_reaches_last_mesh_node(self):
+        from nanohubpadre import create_pn_diode
+        deck = create_pn_diode(length=0.6 + 1.2, junction_position=0.6 / 1.8,
+                               nx=100).generate_deck()
+        last_x = re.findall(r"x\.m n=100 l=([0-9.]+)", deck)[0]
+        x_right = re.findall(r"n\.type conc=\S+ reg=1 x\.l=\S+ x\.r=([0-9.]+)", deck)[0]
+        assert float(last_x) == float(x_right) == 1.8
+        assert "99999999" not in deck and "00000001" not in deck

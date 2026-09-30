@@ -113,7 +113,7 @@ The library includes factory functions for common devices:
 
 ### Tutorial notebooks (`examples/notebooks/`)
 
-A ten-part course that puts every device's **textbook theory side by side with
+A twelve-part course that puts every device's **textbook theory side by side with
 a PADRE simulation** and states, each time, what differs and why (constants,
 approximations, 2-D effects, simulator limitations). The analytic formulas use
 PADRE's own material constants, so remaining differences are physics.
@@ -130,6 +130,8 @@ PADRE's own material constants, so remaining differences are physics.
 | 07 MESFET | gradual-channel model, pinch-off and the L_g/a rule |
 | 08 NIN / PIP Diode | Ohm's law vs Mott–Gurney space-charge-limited current |
 | 09 Validating a Simulator | n_i, mobility, v_sat, drive-force artefact, mesh convergence, noise floor |
+| 10 pntoy Band Diagrams | the nanoHUB pntoy diode: textbook band diagram at low bias; high injection, ohmic drop and the V_bi wall at high bias |
+| 11 Keeping the Textbook Picture | doping, length, area, lifetime and temperature vs the bias range where the textbook band diagram holds |
 
 ### Device scripts (`examples/devices/`)
 

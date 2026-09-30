@@ -31,7 +31,11 @@ class PadreCommand(ABC):
             # Use scientific notation for very small/large numbers
             if abs(value) < 1e-3 or abs(value) > 1e6:
                 return f"{value:.6e}".replace("e+", "e").replace("e0", "e")
-            return str(value)
+            # 12 significant digits drops float round-off: 0.6 + 1.2 would
+            # otherwise print as 1.7999999999999998, and a doping box ending
+            # there misses the mesh node the mesh card places at 1.8, leaving
+            # the contact node undoped.
+            return str(float(f"{value:.12g}"))
         elif isinstance(value, (list, tuple)):
             return ",".join(str(v) for v in value)
         elif isinstance(value, str):
