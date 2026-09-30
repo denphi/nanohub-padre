@@ -331,8 +331,8 @@ DEVICE_PARAMS = {
                 ("workfunction", "float", 4.8, "V", "Metal workfunction"),
                 ("barrier_lowering", "bool", False, "", "Image-force barrier lowering"),
                 ("surf_rec", "bool", True, "", "Thermionic-emission boundary (finite surface recombination)"),
-                ("vsurfn", "float", 2.2e6, "cm/s", "Electron thermionic surface recombination velocity"),
-                ("vsurfp", "float", 1.9e6, "cm/s", "Hole thermionic surface recombination velocity"),
+                ("vsurfn", "float", None, "cm/s", "Electron thermionic velocity (None: PADRE A**=110 -> 1.93e6)"),
+                ("vsurfp", "float", None, "cm/s", "Hole thermionic velocity (None: PADRE A**=30)"),
             ]),
             ("Physical Models", [
                 ("temperature", "float", 300, "K", "Simulation temperature"),

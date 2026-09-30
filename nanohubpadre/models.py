@@ -4,6 +4,7 @@ Physical models configuration for PADRE simulations.
 Controls recombination, mobility, and other physical models.
 """
 
+import warnings
 from typing import Optional, Union, List
 from .base import PadreCommand
 
@@ -91,6 +92,8 @@ class Models(PadreCommand):
     command_name = "MODELS"
 
     # Valid drive term options
+    # "eoj" is documented but PADRE 2.4E aborts on it for the parallel-field
+    # model ("Field-mob driving force currently not available!").
     DRIVE_OPTIONS = ["eoj", "eoqf", "ex", "ey", "emag", "qf", "qfb"]
     G_DRIVE_OPTIONS = ["exj", "exqf", "ex", "ey", "emag"]
 
@@ -175,6 +178,11 @@ class Models(PadreCommand):
 
         # Drives
         self.e_drive = e_drive
+        if fldmob and e_drive == "eoj":
+            warnings.warn(
+                "Models(e_drive='eoj'): PADRE 2.4E aborts with 'Field-mob "
+                "driving force currently not available!'. Use 'eoqf'.",
+                UserWarning, stacklevel=2)
         self.g_drive = g_drive
         self.d_drive = d_drive
         self.i_drive = i_drive

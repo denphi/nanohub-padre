@@ -14,7 +14,7 @@ nanoHUB Rappture decks follow:
 
 import math
 import warnings
-from typing import Dict, Optional
+from typing import Dict, Iterable, List, Optional
 
 from ..solver import Solve
 
@@ -41,6 +41,48 @@ def check_mesh_size(nx: int, ny: int, device: str = "device") -> None:
             UserWarning,
             stacklevel=3,
         )
+
+
+_PADRE_SUFFIX_CHARS = ("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                       "abcdefghijklmnopqrstuvwxyz")
+
+
+def padre_outfile_names(base: str, count: int) -> List[str]:
+    """
+    Names PADRE writes for a stepped SOLVE with ``outf=base``.
+
+    PADRE increments the last character for each bias point through
+    0-9, A-Z, a-z and carries into the previous character (observed:
+    ``idvz`` is followed by ``idw0``).
+    """
+    names, chars = [], list(base)
+    for _ in range(count):
+        names.append("".join(chars))
+        i = len(chars) - 1
+        while i >= 0:
+            c = chars[i]
+            k = _PADRE_SUFFIX_CHARS.find(c)
+            if k < 0 or k + 1 < len(_PADRE_SUFFIX_CHARS):
+                chars[i] = _PADRE_SUFFIX_CHARS[k + 1] if k >= 0 else "0"
+                break
+            chars[i] = "0"
+            i -= 1
+    return names
+
+
+def safe_sweep_outfile(base: str, nsteps: int, avoid: Iterable[str]) -> str:
+    """
+    Solution base name for a stepped SOLVE that cannot overwrite a log file.
+
+    A sweep writing ``outf=idvd`` produces idvd, idve, idvf, idvg, ... and
+    PADRE overwrote the MOSFET's ``idvg`` I-V log with the 4th solution,
+    silently dropping Vd = 0..0.15 V.  With ``outf=idvg`` the very first
+    solution replaced the log (Vg = 0, the off-state point, was lost).
+    """
+    avoid = set(avoid)
+    while avoid.intersection(padre_outfile_names(base, nsteps + 1)):
+        base = "s" + base
+    return base
 
 
 def solve_guess(n_prior: int) -> Dict[str, bool]:
@@ -92,6 +134,19 @@ def add_bias_ramp(
     -------
     int
         Updated prior-solution count.
+
+    Notes
+    -----
+    The ramp never re-solves ``v_from`` (already the current solution) and
+    takes its first step with ``PREV``, the rest with ``PROJ``.  Both rules
+    were found by running PADRE 2.4E on nanoHUB:
+
+    - ``PROJ`` from two solutions at the same bias diverges to NaN.  The
+      MOS-cap LF ramp re-solved the HF sweep's last bias and aborted with
+      "Bias stack exceeded", so no LF C-V file was ever written.
+    - A ramp done entirely with ``PREV`` stalled ("Bias trapping below
+      tolerances") at Vd = 0.849 V on the default MOSFET at any step
+      size down to 0.05 V, so Id-Vg at Vds >= 0.85 V never ran.
     """
     delta = v_to - v_from
     if abs(delta) < 1e-12:
@@ -99,18 +154,28 @@ def add_bias_ramp(
 
     nsteps = max(1, math.ceil(abs(delta) / max_step - 1e-9))
     vstep = round(delta / nsteps, 12)
+    v_first = round(v_from + vstep, 12)
 
-    kwargs = solve_guess(n_prior)
-    kwargs[f"v{electrode}"] = v_from
+    # First step: single solve with PREV, so the next line has two distinct
+    # solutions on this electrode to project from.
     sim.add_solve(Solve(
-        vstep=vstep,
-        nsteps=nsteps,
+        previous=True,
         electrode=electrode,
         no_append=True,
-        outfile=outfile,
-        **kwargs,
+        outfile=outfile if nsteps == 1 else None,
+        **{f"v{electrode}": v_first},
     ))
-    return n_prior + nsteps + 1
+    if nsteps > 1:
+        stepped = {} if nsteps == 2 else {"vstep": vstep, "nsteps": nsteps - 2}
+        sim.add_solve(Solve(
+            project=True,
+            electrode=electrode,
+            no_append=True,
+            outfile=outfile,
+            **stepped,
+            **{f"v{electrode}": round(v_from + 2 * vstep, 12)},
+        ))
+    return n_prior + nsteps
 
 
 # ---------------------------------------------------------------------------

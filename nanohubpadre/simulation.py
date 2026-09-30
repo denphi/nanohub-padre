@@ -1136,11 +1136,28 @@ class Simulation:
             with open(output_path, 'w') as f:
                 f.write(result.stdout)
 
-        # PADRE sometimes exits 0 even after aborting — check stdout for abort message
+        # PADRE sometimes exits 0 even after aborting — check stdout for abort
+        # message.  It also stops silently (exit 0, no "Aborted" banner, the
+        # remaining solves and their log files never written) on these
+        # messages, each seen on PADRE 2.4E-r15: a failed step-cut sequence,
+        # a stalled Newton bias, and the Fermi-Dirac inverse failing in a
+        # strongly depleted region with statistics=fermi.
+        tail = (result.stdout or "")[-3000:]
+        silent_stop = next((m for m in ("Bias stack",
+                                        "Bias trapping below tolerances",
+                                        "nonconvergence in idirac")
+                            if m in tail), None)
+        if result.returncode == 0 and silent_stop:
+            warnings.warn(
+                f"PADRE stopped before the end of the deck ('{silent_stop}'); "
+                f"later solves and their I-V/AC log points are missing. See "
+                f"{os.path.join(self.working_dir, '.padre_run.log')}.",
+                UserWarning, stacklevel=2,
+            )
         padre_aborted = (
             result.returncode == 0
             and result.stdout
-            and "PADRE Aborted" in result.stdout
+            and ("PADRE Aborted" in result.stdout or silent_stop is not None)
         )
         if padre_aborted:
             # Treat as failure so callers see returncode != 0

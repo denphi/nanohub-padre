@@ -145,7 +145,13 @@ def create_mos_capacitor(
     cv_file : str
         Filename for high-frequency C-V data (default: "cv_data")
     log_cv_lf : bool
-        If True, add a second low-frequency AC C-V solve (default: False)
+        If True, add a second low-frequency AC C-V solve (default: False).
+        PADRE's small-signal solve is not reliable at the low frequencies
+        this needs: on PADRE 2.4E the 1 Hz capacitance violated charge
+        conservation (C11 + C12 = 0) by 30-2800% in inversion.  Read the
+        low-frequency curve with ``parse_ac_file(...).get_quasistatic_cv()``
+        (dQ/dV of the DC gate charge, within ~1% of exact classical theory)
+        rather than from ``get_cv_data()``.
     cv_lf_file : str
         Filename for low-frequency C-V data (default: "cv_lf_data")
     log_bands_eq : bool
@@ -225,6 +231,16 @@ def create_mos_capacitor(
         vg_sweep=vg_sweep, ac_frequency=ac_frequency,
         ac_frequency_lf=ac_frequency_lf,
     )
+
+    if log_cv_lf and vg_sweep is not None and ac_frequency_lf <= 100.0:
+        warnings.warn(
+            f"create_mos_capacitor: PADRE's AC solve at {ac_frequency_lf:g} Hz "
+            f"is not reliable in inversion (charge conservation violated by "
+            f"30-2800% on the default device). Take the low-frequency C-V "
+            f"from parse_ac_file('{cv_lf_file}').get_quasistatic_cv(), which "
+            f"uses dQ/dV of the DC gate charge.",
+            UserWarning, stacklevel=2,
+        )
 
     # Warn when the silicon body cannot contain the depletion region:
     # the ohmic back contact would clip it and distort the C-V minimum.

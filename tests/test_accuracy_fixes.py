@@ -227,8 +227,11 @@ class TestSchottkyDiode:
             else:
                 break
         assert "surf" in contact
-        assert "vsurfn" in contact
-        assert "vsurfp" in contact
+        # Velocities default to PADRE's own A**T^2/(q Nc) (TED within 0.06%);
+        # explicit values still pass through.
+        assert "vsurfn" not in contact
+        explicit = create_schottky_diode(vsurfn=2e6, vsurfp=1e6).generate_deck().lower()
+        assert "vsurfn=2" in explicit and "vsurfp=1" in explicit
 
     def test_mesh_refines_into_contact(self):
         deck = create_schottky_diode().generate_deck().lower()
@@ -282,13 +285,16 @@ class TestSolveSequencing:
     def test_bjt_vbe_is_ramped(self):
         deck = create_bjt(log_iv=True, vbe=0.7,
                           vce_sweep=(0.0, 3.0, 0.1)).generate_deck().lower()
-        ramp = next(l for l in deck.splitlines()
-                    if l.startswith("solve") and "vbe_set" in l)
+        solves = [l for l in deck.splitlines() if l.startswith("solve")]
+        k = next(i for i, l in enumerate(solves) if "vbe_set" in l)
+        ramp, first = solves[k], solves[k - 1]
         nsteps = int(re.search(r"nsteps=(\d+)", ramp).group(1))
         vstep = abs(float(re.search(r"vstep=([-\d.e]+)", ramp).group(1)))
-        assert nsteps >= 5           # 0.7 V in steps of <= 0.1 V
+        # 0.7 V in 0.1 V steps: one PREV step to 0.1 V, then PROJ 0.2..0.7 V
+        assert "prev" in first and "v2=0.1" in first
+        assert "proj" in ramp and "v2=0.2" in ramp
+        assert nsteps == 5
         assert vstep <= 0.1 + 1e-9
-        assert "prev" in ramp
 
     def test_iv_log_excludes_prebias_points(self):
         """LOG must come after the ramp solves, right before the sweep."""

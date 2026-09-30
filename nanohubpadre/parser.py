@@ -1311,6 +1311,80 @@ class ACData:
     voltages: Dict[int, np.ndarray] = field(default_factory=dict)
     capacitance: Dict[Tuple[int, int], np.ndarray] = field(default_factory=dict)
     conductance: Dict[Tuple[int, int], np.ndarray] = field(default_factory=dict)
+    # DC state from the header of every Q record, one row per record:
+    # [V1..Vn, I1..In, Q1..Qn] (V, A/um, C/um).  ``charge`` maps electrode
+    # number to its Q column.
+    dc_state: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))
+    charge: Dict[int, np.ndarray] = field(default_factory=dict)
+    # Signed electrode-1 row (C11, C12) of two-electrode files, kept for the
+    # conservation check; ``capacitance`` holds |C11| for plotting.
+    capacitance_11_signed: np.ndarray = field(default_factory=lambda: np.array([]))
+    capacitance_12: np.ndarray = field(default_factory=lambda: np.array([]))
+
+    def conservation_error(self) -> np.ndarray:
+        """
+        Relative small-signal charge-conservation error per bias point.
+
+        Shifting every electrode by the same voltage changes nothing, so the
+        capacitance-matrix rows must sum to zero: C11 + C12 = 0 for a
+        two-terminal MOS capacitor.  On PADRE 2.4E this holds to <1e-4 at
+        1 MHz, but at the low frequencies needed for an inversion response
+        (<= 100 Hz) the AC solve breaks down and the error reaches 30-2800%
+        -- those points are numerical noise, not a low-frequency C-V.
+        """
+        c11_signed = self.capacitance_11_signed
+        if len(c11_signed) == 0 or len(self.capacitance_12) != len(c11_signed):
+            return np.array([])
+        denom = np.abs(c11_signed)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.where(denom > 0,
+                            np.abs(c11_signed + self.capacitance_12) / denom, 0.0)
+
+    def check_conservation(self, tolerance: float = 0.01,
+                           warn: bool = True) -> np.ndarray:
+        """Flag bias points whose AC solution violates C11 + C12 = 0."""
+        err = self.conservation_error()
+        bad = err > tolerance
+        if warn and bad.any():
+            v = self.voltages.get(1, np.arange(len(err)))
+            worst = np.argsort(err)[::-1][:3]
+            detail = ", ".join(f"V1={v[k]:+.3g} V: {err[k] * 100:.0f}% off"
+                               for k in worst)
+            warnings.warn(
+                f"{int(bad.sum())} of {len(err)} AC points violate small-signal "
+                f"charge conservation (C11 + C12 != 0) by more than "
+                f"{tolerance * 100:g}%. PADRE's AC solve is unreliable there "
+                f"(typically at low frequency in inversion); use "
+                f"get_quasistatic_cv() for a low-frequency C-V. Worst: {detail}.",
+                UserWarning, stacklevel=2,
+            )
+        return bad
+
+    def get_quasistatic_cv(self, gate_electrode: int = 1) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Quasi-static (low-frequency) C-V from the DC gate charge: C = dQ/dV.
+
+        This is how the equilibrium low-frequency curve is defined, and it
+        does not depend on PADRE's small-signal solve.  Against the exact
+        classical MOS theory (Sze & Ng 2007, Sec. 4.3) it matched within
+        ~1% in accumulation and strong inversion on the default MOS-cap;
+        accuracy near threshold is limited by the sweep step.
+        """
+        if self.dc_state.size == 0:
+            return np.array([]), np.array([])
+        n = self.dc_state.shape[1] // 3
+        v = self.dc_state[:, gate_electrode - 1]
+        q = self.dc_state[:, 2 * n + gate_electrode - 1]
+        # Keep the last record at each bias (a sweep may re-solve its start)
+        # and order by voltage before differentiating.
+        _, last = np.unique(v[::-1], return_index=True)
+        keep = np.sort(len(v) - 1 - last)
+        v, q = v[keep], q[keep]
+        order = np.argsort(v)
+        v, q = v[order], q[order]
+        if len(v) < 3:
+            return np.array([]), np.array([])
+        return v, np.abs(np.gradient(q, v))
 
     def get_cv_data(self, gate_electrode: int = 1, bulk_electrode: int = 2) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -1376,26 +1450,40 @@ class ACFileParser:
         capacitance_data = {}  # (electrode, electrode) -> list of capacitances
         
         current_voltage = None  # Store voltage from Q record
-        
+        n_elec = 0              # electrodes in the current Q record
+        header = []             # [V1..Vn, I1..In, Q1..Qn] after the Q line
+        header_needed = 0
+        dc_rows = []            # one header per Q record
+        c11_signed, c12 = [], []
+
         try:
             for line in lines:
                 line = line.strip()
-                
+
                 # Skip empty lines and header
                 if not line or line.startswith('#'):
                     continue
-                
+
                 # Extract all numeric values from the line
                 regex = re.findall(r'-?\s*[0-9]+\.?[0-9]*(?:[Ee]\s*[-+]?\s*[0-9]+)?', line)
-                
+
+                # Header block of the current Q record
+                if header_needed and not line.startswith('Q'):
+                    header += [float(v.replace(' ', '')) for v in regex]
+                    if len(header) >= header_needed:
+                        dc_rows.append(header[:header_needed])
+                        header_needed = 0
+                    continue
+
                 # Q records (start with 'Q')
                 if line.startswith('Q'):
                     parts = line.split()
                     if len(parts) < 5:
                         continue
-                        
-                    # Format: Q electrode capacitance frequency v1 v2 v3 ...
-                    electrode = int(parts[1])
+
+                    # Format: Q n_electrodes kT/q frequency v1 v2 v3 ...
+                    n_elec = int(parts[1])
+                    header, header_needed = [], 3 * n_elec
                     frequency = float(parts[3])
                     
                     # Voltages start at index 4
@@ -1418,8 +1506,12 @@ class ACFileParser:
                 elif len(regex) == 5:
                     try:
                         elec_num = int(float(regex[0].strip()))
-                        # The 4th value (index 3) is the capacitance
-                        cap_value = abs(float(regex[3].strip())) * 1e8  # Scale factor from your code
+                        # Row i holds [.., .., C_i1, C_i2] on its first line;
+                        # values are F per micron of depth, as documented.
+                        cap_value = abs(float(regex[3].strip()))
+                        if elec_num == 1 and n_elec == 2:
+                            c11_signed.append(float(regex[3].replace(' ', '')))
+                            c12.append(float(regex[4].replace(' ', '')))
                         
                         # Store voltage for this electrode
                         if current_voltage is not None:
@@ -1446,7 +1538,15 @@ class ACFileParser:
             
             for key, capacitances in capacitance_data.items():
                 result.capacitance[key] = np.array(capacitances)
-                
+
+            if dc_rows and len({len(r) for r in dc_rows}) == 1:
+                result.dc_state = np.array(dc_rows)
+                n = result.dc_state.shape[1] // 3
+                for i in range(n):
+                    result.charge[i + 1] = result.dc_state[:, 2 * n + i]
+            result.capacitance_11_signed = np.array(c11_signed)
+            result.capacitance_12 = np.array(c12)
+
             return result
             
         except Exception as e:

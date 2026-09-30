@@ -15,7 +15,7 @@ from ..solver import System, Solve
 from ..log import Log
 from ..plot3d import Plot3D
 from ._common import (
-    check_mesh_size, solve_guess, add_bias_ramp, GATE_STEP, sweep_steps,
+    check_mesh_size, solve_guess, add_bias_ramp, safe_sweep_outfile, GATE_STEP, sweep_steps,
     contract_ratio,
 )
 
@@ -67,7 +67,15 @@ def create_mesfet(
     Parameters
     ----------
     channel_length : float
-        Source-to-gate and gate-to-drain spacing in microns (default: 0.2)
+        Width of each n+ source/drain contact region in microns (default:
+        0.2).  The gated channel between them is
+        ``device_width - 2*channel_length`` wide, and ``gate_length`` should
+        fill it.  The default gate (0.2 um) equals ``channel_depth``; with
+        L_g/a = 1 the device is strongly short-channel and does not pinch
+        off (Id fell only 2.9x from Vgs = 0 to -3.5 V on PADRE 2.4E).  For
+        textbook pinch-off use L_g/a >= 3, e.g. gate_length=0.6,
+        device_width=1.0 (100x) or gate_length=1.2, device_width=1.6
+        (9000x).
     gate_length : float
         Gate length in microns (default: 0.2)
     device_width : float
@@ -108,7 +116,11 @@ def create_mesfet(
         Enable field-dependent mobility (default: True)
     statistics : str
         Carrier statistics: "fermi" (reference tool; needed for the
-        degenerate 1e20 contact regions) or "boltzmann" (default: "fermi")
+        degenerate 1e20 contact regions) or "boltzmann" (default: "fermi").
+        With "fermi", a strongly depleted long-gate channel can stop PADRE
+        with "nonconvergence in idirac" (seen at gate_length=1.2 um,
+        Vgs = -1 and -3 V); "boltzmann" runs there and changes the default
+        device's current by ~5%.
     title : str, optional
         Simulation title
     log_iv : bool
@@ -337,7 +349,7 @@ def create_mesfet(
                 vstep=v_step,
                 nsteps=nsteps,
                 electrode=2,
-                outfile="idvd"
+                outfile=safe_sweep_outfile("idvd", nsteps, [iv_file])
             ))
             n_prior += nsteps + 1
             bias[2] = v_final

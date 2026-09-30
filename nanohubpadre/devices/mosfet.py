@@ -17,7 +17,7 @@ from ..solver import System, Solve
 from ..log import Log
 from ..plot3d import Plot3D
 from ._common import (
-    check_mesh_size, solve_guess, add_bias_ramp, GATE_STEP, DRAIN_STEP, sweep_steps,
+    check_mesh_size, solve_guess, add_bias_ramp, safe_sweep_outfile, GATE_STEP, DRAIN_STEP, sweep_steps,
     contract_ratio, expand_ratio,
 )
 
@@ -270,9 +270,17 @@ def create_mosfet(
     sim.add_region(Region(6, ix_low=1, ix_high=nx_sd, iy_low=ny_sub + ny_junc, iy_high=ny, oxide=True))
     sim.add_region(Region(7, ix_low=nx_sd + nx_ch, ix_high=nx, iy_low=ny_sub + ny_junc, iy_high=ny, oxide=True))
 
-    # Electrodes
-    sim.add_electrode(Electrode(1, ix_low=1, ix_high=nx_sd, iy_low=ny_sub + ny_junc, iy_high=ny_sub + ny_junc))  # Source
-    sim.add_electrode(Electrode(2, ix_low=nx_sd + nx_ch, ix_high=nx, iy_low=ny_sub + ny_junc, iy_high=ny_sub + ny_junc))  # Drain
+    # Electrodes.  Source/drain stop one column short of the junction: the
+    # shared column ix=nx_sd takes the channel's doping, so a contact there
+    # is an ohmic contact on p-type silicon that pins the surface electron
+    # density to ni^2/Na (~5e2 cm^-3) between the inversion layer and the
+    # source.  Measured on PADRE 2.4E: that node cut the default device's
+    # linear current 4.2x (46.5 -> 196.6 uA/um at Vg=1.5 V, Vd=0.05 V) and
+    # made current fall exponentially with L (L=1 um: 2e-11 A instead of
+    # 2.8e-5 A); with the columns excluded L*Id is constant within 6%.
+    y_si_top = ny_sub + ny_junc
+    sim.add_electrode(Electrode(1, ix_low=1, ix_high=nx_sd - 1, iy_low=y_si_top, iy_high=y_si_top))  # Source
+    sim.add_electrode(Electrode(2, ix_low=nx_sd + nx_ch + 1, ix_high=nx, iy_low=y_si_top, iy_high=y_si_top))  # Drain
     sim.add_electrode(Electrode(3, ix_low=nx_sd, ix_high=nx_sd + nx_ch, iy_low=ny, iy_high=ny))  # Gate
     sim.add_electrode(Electrode(4, ix_low=1, ix_high=nx, iy_low=1, iy_high=1))  # Substrate
 
@@ -382,7 +390,7 @@ def create_mosfet(
                 vstep=v_step,
                 nsteps=nsteps,
                 electrode=3,
-                outfile="idvg"
+                outfile=safe_sweep_outfile("idvg", nsteps, [iv_file])
             ))
             n_prior += nsteps + 1
             bias[3] = v_final
@@ -425,7 +433,7 @@ def create_mosfet(
                 vstep=v_step,
                 nsteps=nsteps,
                 electrode=2,
-                outfile="idvd"
+                outfile=safe_sweep_outfile("idvd", nsteps, [iv_file])
             ))
             n_prior += nsteps + 1
             bias[2] = v_final

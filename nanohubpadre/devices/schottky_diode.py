@@ -30,8 +30,8 @@ def create_schottky_diode(
     workfunction: float = 4.8,
     barrier_lowering: bool = False,
     surf_rec: bool = True,
-    vsurfn: float = 2.2e6,
-    vsurfp: float = 1.9e6,
+    vsurfn: Optional[float] = None,
+    vsurfp: Optional[float] = None,
     # Physical models
     temperature: float = 300,
     srh: bool = False,
@@ -71,7 +71,10 @@ def create_schottky_diode(
     doping_type : str
         Semiconductor doping type: "n" or "p" (default: "n")
     workfunction : float
-        Metal workfunction in V (default: 4.8)
+        Metal workfunction in V (default: 4.8).  PADRE's silicon electron
+        affinity is 4.17 eV (not the textbook 4.05), so the barrier is
+        phi_Bn = workfunction - 4.17: 0.63 eV for the default, as measured
+        from the equilibrium band edge on PADRE 2.4E.
     barrier_lowering : bool
         Enable image-force barrier lowering (default: False)
     surf_rec : bool
@@ -80,13 +83,18 @@ def create_schottky_diode(
         Without it the contact is a plain workfunction Dirichlet condition
         and the forward I-V magnitude does not follow thermionic-emission
         theory.
-    vsurfn : float
-        Electron thermionic surface recombination velocity in cm/s
-        (default: 2.2e6, silicon A*=112 A/cm²K²). Only used when
+    vsurfn : float, optional
+        Electron thermionic surface recombination velocity in cm/s.  Default
+        None lets PADRE use A**T^2/(q Nc) from its own Richardson constant
+        (A** = 110 A/cm^2K^2 for n-Si, Crowell 1965; Nc = 3.2e19), i.e.
+        1.93e6 cm/s.  The old hard-coded 2.2e6 assumed Nc = 2.8e19 and
+        implied A** = 125 with PADRE's Nc.  With the default the reverse
+        current matched Crowell-Sze thermionic-emission-diffusion theory to
+        0.06% on PADRE 2.4E.  Only used when surf_rec=True.
+    vsurfp : float, optional
+        Hole thermionic surface recombination velocity in cm/s.  Default
+        None uses PADRE's A** = 30 A/cm^2K^2 for p-Si.  Only used when
         surf_rec=True.
-    vsurfp : float
-        Hole thermionic surface recombination velocity in cm/s
-        (default: 1.9e6). Only used when surf_rec=True.
     temperature : float
         Simulation temperature in Kelvin (default: 300)
     srh : bool

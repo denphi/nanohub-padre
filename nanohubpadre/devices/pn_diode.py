@@ -100,7 +100,8 @@ def create_pn_diode(
     conmob : bool
         Enable concentration-dependent mobility (default: True)
     fldmob : bool
-        Enable field-dependent mobility (default: True)
+        Enable field-dependent mobility (default: True).  Uses the
+        ``e.drive=eoqf`` driving force; see the note at the MODELS card.
     impact : bool
         Enable impact ionization (default: False)
     taun0 : float
@@ -320,9 +321,17 @@ def create_pn_diode(
     sim.add_material(Material(name="silicon", taun0=taun0, taup0=taup0,
                               trap_type="0", etrap=0))
 
-    # Physical models
+    # Physical models.  PADRE's default fldmob driving force (qfb, the
+    # quasi-Fermi gradient) treats the steep minority-carrier qf gradient
+    # next to an ohmic contact as a high field and caps minority diffusion
+    # at vsat.  Measured on PADRE 2.4E: the default diode then carried
+    # 0.60-0.89x the Shockley short-base current with n = 1.03; with
+    # e.drive=eoqf (E projected on the current direction) it is 0.98-1.02x
+    # with n = 1.005 -- the same as fldmob off -- while drift velocity
+    # saturation in a resistor is unchanged (1.034e7 cm/s either way).
     sim.models = Models(srh=srh, conmob=conmob, fldmob=fldmob, impact=impact,
-                        temperature=temperature)
+                        temperature=temperature,
+                        e_drive="eoqf" if fldmob else None)
     sim.system = System(electrons=True, holes=True, newton=True)
 
     # I-V logging
