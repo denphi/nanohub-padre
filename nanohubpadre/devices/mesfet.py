@@ -75,7 +75,7 @@ def create_mesfet(
         off (Id fell only 2.9x from Vgs = 0 to -3.5 V on PADRE 2.4E).  For
         textbook pinch-off use L_g/a >= 3, e.g. gate_length=0.6,
         device_width=1.0 (100x) or gate_length=1.2, device_width=1.6
-        (9000x).
+        (~15000x).
     gate_length : float
         Gate length in microns (default: 0.2)
     device_width : float

@@ -106,8 +106,11 @@ def create_mos_capacitor(
     oxide_qf : float
         Fixed bulk charge density in oxide in cm^-3 (default: 0)
     oxide_qftrap : float
-        Interface trap charge density at oxide-semiconductor interface in cm^-2
-        (default: 0). Shifts the flat-band voltage.
+        Value passed to PADRE's ``INTERFACE QF`` (fixed interface charge,
+        cm^-2; default 0).  Measured on PADRE 2.4E: the flat-band shift is
+        +2*q*QF/Cox -- opposite in sign and twice the -q*Q/Cox expected for a
+        positive sheet charge Q (linear, both signs).  To model a physical
+        positive interface charge Q, pass ``oxide_qftrap = -Q/2``.
     taun0 : float
         Electron minority carrier lifetime in seconds (default: 1e-9,
         matching the reference tool). Short lifetimes let the inversion
