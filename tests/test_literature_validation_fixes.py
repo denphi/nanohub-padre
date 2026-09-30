@@ -189,3 +189,11 @@ class TestSilentPadreStops:
         with pytest.warns(UserWarning, match="stopped before the end"):
             result = sim.run(padre_executable=str(fake), auto_output_dir=False)
         assert result.returncode != 0
+
+
+class TestSchottkyBarrierLowering:
+    def test_barrier_lowering_warns(self):
+        """PADRE 2.4E: BARRIERL + surf.rec -> NaN at 0 V; without surf.rec no effect."""
+        from nanohubpadre.devices import create_schottky_diode
+        with pytest.warns(UserWarning, match="barrier lowering"):
+            create_schottky_diode(barrier_lowering=True)

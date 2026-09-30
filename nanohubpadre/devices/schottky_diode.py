@@ -2,6 +2,7 @@
 Schottky Diode factory function.
 """
 
+import warnings
 from typing import Optional, Tuple
 from ..simulation import Simulation
 from ..mesh import Mesh
@@ -76,7 +77,10 @@ def create_schottky_diode(
         phi_Bn = workfunction - 4.17: 0.63 eV for the default, as measured
         from the equilibrium band edge on PADRE 2.4E.
     barrier_lowering : bool
-        Enable image-force barrier lowering (default: False)
+        Enable image-force barrier lowering (default: False).  Not usable
+        with PADRE 2.4E: with ``surf_rec=True`` the solution diverges to NaN
+        at the first bias point (even 0 V), and with ``surf_rec=False`` it
+        has no effect on the current.  A warning is issued.
     surf_rec : bool
         Enable the thermionic-emission boundary condition (finite surface
         recombination velocity) at the Schottky contact (default: True).
@@ -156,6 +160,14 @@ def create_schottky_diode(
     )
 
     check_mesh_size(nx, ny, "create_schottky_diode")
+    if barrier_lowering:
+        warnings.warn(
+            "create_schottky_diode: PADRE 2.4E's image-force barrier lowering "
+            "(BARRIERL) is not usable: combined with surf_rec it diverges to NaN "
+            "at the first bias point, and without surf_rec it changes nothing. "
+            "Expect PADRE to abort.",
+            UserWarning, stacklevel=2,
+        )
 
     # Mesh with refinement near the Schottky contact (y=0): spacing must
     # be finest AT the contact, where the barrier and depletion region
