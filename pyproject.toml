@@ -43,8 +43,8 @@ docs = [
 
 [project.urls]
 Documentation = "https://nanohub-padre.readthedocs.io/"
-Repository = "https://github.com/nanohub/padre"
-Issues = "https://github.com/nanohub/padre/issues"
+Repository = "https://github.com/denphi/nanohub-padre"
+Issues = "https://github.com/denphi/nanohub-padre/issues"
 
 [tool.setuptools.dynamic]
 version = {attr = "nanohubpadre._version.__version__"}

@@ -23,7 +23,7 @@ pip install nanohub-padre
 Or install from source:
 
 ```bash
-git clone https://github.com/nanohub/nanohub-padre.git
+git clone https://github.com/denphi/nanohub-padre.git
 cd nanohub-padre
 pip install -e .
 ```

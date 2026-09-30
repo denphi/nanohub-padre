@@ -21,7 +21,7 @@ setup(
     description="Python library for PADRE semiconductor device simulator",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/nanohub/nanohub-padre",
+    url="https://github.com/denphi/nanohub-padre",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
