@@ -111,22 +111,42 @@ The library includes factory functions for common devices:
 
 ## Examples
 
-The `examples/` directory contains Python equivalents of common PADRE simulations:
+### Tutorial notebooks (`examples/notebooks/`)
 
-- **pndiode.py**: PN junction diode I-V characterization
-- **moscap.py**: MOS capacitor C-V analysis
-- **mosfet_equivalent.py**: NMOS transistor transfer and output characteristics
-- **mesfet.py**: Metal-Semiconductor FET simulation
-- **single_mosgap.py**: Simple oxide-silicon structure
+A ten-part course that puts every device's **textbook theory side by side with
+a PADRE simulation** and states, each time, what differs and why (constants,
+approximations, 2-D effects, simulator limitations). The analytic formulas use
+PADRE's own material constants, so remaining differences are physics.
 
-Device factory examples in `examples/devices/`:
+| Notebook | Topic |
+|---|---|
+| 00 Introduction | drift-diffusion equations, units, textbook vs PADRE constants |
+| 01 Library Overview | building a deck by hand and with factories; six ways a simulation silently goes wrong |
+| 02 PN Diode | V_bi, depletion approximation, Shockley short/long base, SRH n→2, generation current |
+| 03 Schottky Diode | Schottky–Mott, thermionic emission vs Crowell–Sze, Richardson plot |
+| 04 MOSFET | V_T definitions, swing, DIBL, mobility, velocity saturation, 1/L scaling |
+| 05 BJT | Gummel numbers, band-gap narrowing and β, Early voltage |
+| 06 MOS Capacitor | exact classical C-V, C_min, quasi-static LF C-V, flat-band shifts |
+| 07 MESFET | gradual-channel model, pinch-off and the L_g/a rule |
+| 08 NIN / PIP Diode | Ohm's law vs Mott–Gurney space-charge-limited current |
+| 09 Validating a Simulator | n_i, mobility, v_sat, drive-force artefact, mesh convergence, noise floor |
 
-- **pn_diode_example.py**: PN diode using factory function
-- **mosfet_example.py**: NMOS using factory function
-- **bjt_example.py**: NPN BJT using factory function
-- **solar_cell_example.py**: Solar cell using factory function
+### Device scripts (`examples/devices/`)
 
-Run an example:
+Short, runnable companions to the notebooks (`pn_diode`, `schottky_diode`,
+`mosfet`, `bjt`, `mos_capacitor`, `mesfet`, `nin_diode`, `solar_cell`). Each
+builds the default device, runs PADRE if it is on your PATH (otherwise prints
+the input deck), and prints the key textbook-vs-PADRE comparisons:
+
+```bash
+python examples/devices/pn_diode_example.py
+```
+
+### Deck translations (`examples/*.py`)
+
+Python equivalents of classic PADRE input decks (`pndiode.py`, `moscap.py`,
+`mosfet_equivalent.py`, `mesfet.py`, `single_mosgap.py`), each paired with
+its `.in` file:
 
 ```bash
 PYTHONPATH=. python3 examples/pndiode.py > pndiode.inp
